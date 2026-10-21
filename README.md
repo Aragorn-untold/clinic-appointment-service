@@ -71,10 +71,32 @@ notifications/     services.py, messages.py, tasks.py, telegram.py (not in urls)
 
 ## Current state
 
-- Only `users` has a model. The other apps contain empty models/views and placeholder `urls.py`.
-- No migrations are committed yet. Run `makemigrations` locally. Whoever adds models should commit the migrations in their PR.
+- `users` contains the custom user model `users.UserPatient`, which uses email for authentication.
+- `specializations`, `doctors`, `doctor_slots`, `appointments`, and `payments` contain the initial data models and Django admin registrations.
+- Initial migrations are committed with the models.
+- `fixtures/initial_data.json` contains shared test data for specializations, doctors, doctor slots, a test patient, an appointment, and a payment.
 - `notifications.services.notify_admins()` is a stub: it only writes to the log. Celery tasks and the Telegram client are not implemented yet.
-- Celery, Redis, Stripe and psycopg are in `requirements.txt` but not wired up yet. Their versions are not pinned yet.
+- Celery, Redis, Stripe, and psycopg are listed in `requirements.txt` but are not fully wired up yet.
+
+## Loading Test Data
+
+After setting up the environment and applying migrations, load the shared test data:
+
+```bash
+python manage.py migrate
+python manage.py loaddata fixtures/initial_data.json
+```
+
+The fixture includes sample specializations, doctors, doctor slots, a test patient, an appointment, and a payment.
+
+Create your own administrator account separately:
+
+```bash
+python manage.py createsuperuser
+```
+
+**Note:** The fixture uses fixed primary keys for its sample records. Load it into a fresh local database after migrations. Avoid loading it repeatedly into a database that already contains conflicting records.
+
 
 ## URLs
 
