@@ -11,12 +11,12 @@ class Appointment(models.Model):
 
     doctor_slot = models.ForeignKey(
         "doctor_slots.DoctorSlot",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="appointments",
     )
     patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="appointments",
     )
     status = models.CharField(
@@ -27,6 +27,15 @@ class Appointment(models.Model):
     booked_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["doctor_slot"],
+                condition=models.Q(status="BOOKED"),
+                name="unique_booked_appointment_per_slot",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.patient} — {self.doctor_slot}"

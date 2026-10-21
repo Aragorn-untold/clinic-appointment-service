@@ -14,7 +14,7 @@ class Payment(models.Model):
 
     appointment = models.ForeignKey(
         "appointments.Appointment",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="payments",
     )
     status = models.CharField(
@@ -27,7 +27,7 @@ class Payment(models.Model):
         choices=Type.choices,
     )
     session_url = models.URLField()
-    session_id = models.CharField(max_length=255)
+    session_id = models.CharField(max_length=255, unique=True)
     money_to_pay = models.DecimalField(
         max_digits=10,
         decimal_places=2,
