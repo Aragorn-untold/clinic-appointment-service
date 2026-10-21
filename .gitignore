@@ -1,0 +1,20 @@
+# Environment
+.env
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Django
+db.sqlite3
+media/
+staticfiles/
+
+# Tools / editors
+.idea/
+.vscode/
+.pytest_cache/
+.coverage
+htmlcov/
