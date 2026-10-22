@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from appointments.models import Appointment
+from doctor_slots.serializers import DoctorSlotDetailSerializer
 
 
 class AppointmentListSerializer(serializers.ModelSerializer):
@@ -28,21 +29,6 @@ class AppointmentListSerializer(serializers.ModelSerializer):
             "status",
             "price",
         ]
-
-
-class DoctorDetailSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    first_name = serializers.CharField()
-    last_name = serializers.CharField()
-    specializations = serializers.StringRelatedField(many=True)
-
-
-class DoctorSlotDetailSerializer(serializers.ModelSerializer):
-    doctor = DoctorDetailSerializer(read_only=True)
-
-    class Meta:
-        model = Appointment._meta.get_field("doctor_slot").related_model
-        fields = ["id", "doctor", "start", "end"]
 
 
 class AppointmentDetailSerializer(serializers.ModelSerializer):
