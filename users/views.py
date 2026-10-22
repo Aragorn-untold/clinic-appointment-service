@@ -1,1 +1,19 @@
-# Create your views here.
+from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from users.serializers import UserSerializer, UserCreateSerializer
+
+
+class CreateUserView(generics.CreateAPIView):
+    serializer_class = UserCreateSerializer
+    permission_classes = (AllowAny,)
+
+
+class DetailUserView(generics.RetrieveUpdateAPIView):
+    serializer_class = UserSerializer
+    authentication_classes = (JWTAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get_object(self):
+        return self.request.user
