@@ -36,6 +36,8 @@ SITE_URL = os.getenv("SITE_URL", "http://localhost:8000")
 
 # Celery
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CELERY_TIMEZONE = "Europe/Kyiv"
+CELERY_TASK_TIME_LIMIT = 30 * 60
 
 # Telegram
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -60,6 +62,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     "rest_framework_simplejwt",
+    "django_filters",
     # local
     "specializations",
     "doctors",
@@ -174,6 +177,17 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "core.permissions.IsAdminOrReadOnly",
     ],
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+    ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle"
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "300/day",
+        "user": "1000/day"
+    }
 }
 
 SPECTACULAR_SETTINGS = {
@@ -193,32 +207,4 @@ SIMPLE_JWT = {
 	"ACCESS_TOKEN_LIFETIME": timedelta(days=30), # for dev, should be changed later
 	"REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 	"ROTATE_REFRESH_TOKENS": False
-}
-
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "simple": {
-            "format": "[{asctime}] {levelname} {name}: {message}",
-            "style": "{",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        },
-    },
-    "root": {
-        "handlers": ["console"],
-        "level": "WARNING",
-    },
-    "loggers": {
-        "notifications": {
-            "handlers": ["console"],
-            "level": "DEBUG" if DEBUG else "INFO",
-            "propagate": False,
-        },
-    },
 }

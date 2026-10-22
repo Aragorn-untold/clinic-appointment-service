@@ -18,3 +18,6 @@ staticfiles/
 .pytest_cache/
 .coverage
 htmlcov/
+
+file.md
+file2.md

@@ -1,0 +1,31 @@
+# Project lint/format config: ruff check . && ruff format --check .
+line-length = 120
+target-version = "py312"
+extend-exclude = ["*/migrations/*"]
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes: unused imports/variables, undefined names
+    "I",   # import sorting
+    "B",   # bugbear: likely bugs
+    "SIM", # simplifications
+    "DJ",  # Django-specific checks
+]
+
+[lint.per-file-ignores]
+# Generated default; settings has long validator paths
+"core/settings.py" = ["E501"]
+
+[lint.isort]
+known-first-party = [
+    "core",
+    "users",
+    "specializations",
+    "doctors",
+    "doctor_slots",
+    "appointments",
+    "payments",
+    "notifications",
+]
