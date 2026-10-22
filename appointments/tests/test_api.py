@@ -143,9 +143,7 @@ class AppointmentAPITests(TestCase):
                 status=Appointment.Status.BOOKED,
             ).exists()
         )
-        notify_mock.assert_called_once_with(
-            f"Appointment #{response.data['id']} booked"
-        )
+        notify_mock.assert_called_once_with(f"Appointment #{response.data['id']} booked")
 
     def test_cannot_book_an_already_booked_slot(self):
         self.client.force_authenticate(user=self.other_patient)
@@ -182,6 +180,4 @@ class AppointmentAPITests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertFalse(
-            Appointment.objects.filter(doctor_slot=slot).exists()
-        )
+        self.assertFalse(Appointment.objects.filter(doctor_slot=slot).exists())

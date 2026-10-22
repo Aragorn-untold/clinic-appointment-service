@@ -7,10 +7,12 @@ app_name = "appointments"
 urlpatterns = [
     path(
         "",
-        AppointmentViewSet.as_view({
-            "get": "list",
-            "post": "create",
-        }),
+        AppointmentViewSet.as_view(
+            {
+                "get": "list",
+                "post": "create",
+            }
+        ),
         name="appointment-list",
     ),
     path(

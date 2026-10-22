@@ -29,23 +29,20 @@ class AppointmentViewSet(ModelViewSet):
         patient_id = params.get("patient_id")
         if patient_id:
             if not patient_id.isdigit():
-                raise ValidationError({"patient_id": "Must be a "
-                                                     "positive integer."})
+                raise ValidationError({"patient_id": "Must be a positive integer."})
             queryset = queryset.filter(patient_id=patient_id)
 
         doctor_id = params.get("doctor_id")
         if doctor_id:
             if not doctor_id.isdigit():
-                raise ValidationError({"doctor_id": "Must be a "
-                                                    "positive integer."})
+                raise ValidationError({"doctor_id": "Must be a positive integer."})
             queryset = queryset.filter(doctor_slot__doctor_id=doctor_id)
 
         status = params.get("status")
         if status:
             valid_statuses = Appointment.Status.values
             if status not in valid_statuses:
-                raise ValidationError({"status": "Invalid "
-                                                 "appointment status."})
+                raise ValidationError({"status": "Invalid appointment status."})
             queryset = queryset.filter(status=status)
 
         for param, lookup, _comparison in (
@@ -58,19 +55,14 @@ class AppointmentViewSet(ModelViewSet):
 
             parsed_datetime = parse_datetime(value)
             if parsed_datetime:
-                queryset = queryset.filter(
-                    **{f"doctor_slot__start__{lookup}": parsed_datetime}
-                )
+                queryset = queryset.filter(**{f"doctor_slot__start__{lookup}": parsed_datetime})
                 continue
 
             parsed_date = parse_date(value)
             if not parsed_date:
-                raise ValidationError({param: "Use YYYY-MM-DD or "
-                                              "an ISO datetime."})
+                raise ValidationError({param: "Use YYYY-MM-DD or an ISO datetime."})
 
-            queryset = queryset.filter(
-                **{f"doctor_slot__start__date__{lookup}": parsed_date}
-            )
+            queryset = queryset.filter(**{f"doctor_slot__start__date__{lookup}": parsed_date})
 
         return queryset
 

@@ -64,17 +64,13 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
 
     def validate_doctor_slot(self, doctor_slot):
         if doctor_slot.start <= timezone.now():
-            raise serializers.ValidationError(
-                "The appointment slot must be in the future."
-            )
+            raise serializers.ValidationError("The appointment slot must be in the future.")
 
         if Appointment.objects.filter(
             doctor_slot=doctor_slot,
             status=Appointment.Status.BOOKED,
         ).exists():
-            raise serializers.ValidationError(
-                "This slot is already booked."
-            )
+            raise serializers.ValidationError("This slot is already booked.")
 
         return doctor_slot
 
@@ -87,22 +83,16 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
                     .get(pk=validated_data["doctor_slot"].pk)
                 )
             except DoctorSlot.DoesNotExist:
-                raise serializers.ValidationError(
-                    {"doctor_slot": "This slot does not exist."}
-                ) from None
+                raise serializers.ValidationError({"doctor_slot": "This slot does not exist."}) from None
 
             if doctor_slot.start <= timezone.now():
-                raise serializers.ValidationError(
-                    {"doctor_slot": "This slot is no longer in the future."}
-                )
+                raise serializers.ValidationError({"doctor_slot": "This slot is no longer in the future."})
 
             if Appointment.objects.filter(
                 doctor_slot=doctor_slot,
                 status=Appointment.Status.BOOKED,
             ).exists():
-                raise serializers.ValidationError(
-                    {"doctor_slot": "This slot is already booked."}
-                )
+                raise serializers.ValidationError({"doctor_slot": "This slot is already booked."})
 
             appointment = Appointment.objects.create(
                 doctor_slot=doctor_slot,
@@ -110,8 +100,6 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
                 price=doctor_slot.doctor.price_per_visit,
             )
 
-            transaction.on_commit(
-                lambda: notify_admins(appointment_booked(appointment))
-            )
+            transaction.on_commit(lambda: notify_admins(appointment_booked(appointment)))
 
         return appointment
