@@ -8,8 +8,8 @@ from django.test import TestCase
 from django.utils import timezone
 
 from appointments.models import Appointment
-from doctors.models import Doctor
 from doctor_slots.models import DoctorSlot
+from doctors.models import Doctor
 
 
 class AppointmentTests(TestCase):
@@ -41,13 +41,12 @@ class AppointmentTests(TestCase):
             password="test-password",
         )
 
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                Appointment.objects.create(
-                    doctor_slot=self.slot,
-                    patient=another_patient,
-                    price=Decimal("800.00"),
-                )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Appointment.objects.create(
+                doctor_slot=self.slot,
+                patient=another_patient,
+                price=Decimal("800.00"),
+            )
 
     def test_patient_and_slot_are_protected_from_deletion(self):
         with self.assertRaises(ProtectedError):

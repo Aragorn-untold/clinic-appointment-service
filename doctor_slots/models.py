@@ -1,4 +1,3 @@
-
 from django.db import models
 
 
@@ -23,6 +22,9 @@ class DoctorSlot(models.Model):
             ),
         ]
 
+    def __str__(self):
+        return f"{self.doctor}: {self.start} - {self.end}"
+
     def save(self, *args, **kwargs):
         overlapping_slots = DoctorSlot.objects.filter(
             doctor=self.doctor,
@@ -34,6 +36,3 @@ class DoctorSlot(models.Model):
             raise ValueError("Doctor already has an overlapping slot.")
 
         super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.doctor}: {self.start} - {self.end}"

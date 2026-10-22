@@ -1,0 +1,103 @@
+# CI: lint, format check, tests with coverage (task O4)
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch: # manual run from the Actions tab
+
+# Cancel an older run of the same PR/branch when new commits are pushed
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Same ruff version as in requirements.txt
+      - name: Install ruff
+        run: pip install "$(grep -E '^ruff==' requirements.txt)"
+
+      - name: ruff check
+        run: ruff check . --output-format=github
+
+      - name: ruff format --check
+        run: ruff format --check .
+
+  test:
+    name: Tests + coverage
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: clinic
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clinic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # No .env in CI: settings read these from the environment.
+    # Stripe/Telegram keys stay empty: tests must mock external calls.
+    env:
+      DJANGO_SECRET_KEY: ci-only-not-secret
+      DEBUG: "False"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      POSTGRES_DB: clinic
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run tests with coverage
+        run: coverage run manage.py test
+
+      # Fails the job when total coverage < 60% (fail_under in .coveragerc)
+      - name: Coverage report
+        run: |
+          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+          coverage report
+
+      - name: Upload HTML coverage report
+        if: always()
+        run: coverage html || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-html
+          path: htmlcov/
+          if-no-files-found: ignore

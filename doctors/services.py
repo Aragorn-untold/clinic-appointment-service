@@ -1,4 +1,4 @@
-from datetime import date, time, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 
 def generate_slots(
@@ -35,9 +35,7 @@ def generate_slots(
     if start_time >= end_time:
         raise ValueError("start_time must be earlier than end_time")
     if slot_length_minutes < 1:
-        raise ValueError(
-            f"slot_length_minutes must be positive, got {slot_length_minutes}"
-        )
+        raise ValueError(f"slot_length_minutes must be positive, got {slot_length_minutes}")
 
     day_start = datetime.combine(workday, start_time)
     day_end = datetime.combine(workday, end_time)
