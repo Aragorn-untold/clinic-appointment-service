@@ -40,10 +40,7 @@ class PublicUserApiTests(TestCase):
 class AuthenticatedUser(TestCase):
     def setUp(self) -> None:
         self.client = APIClient()
-        self.user = get_user_model().objects.create_user(
-            email="test@test.test",
-            password="test_password"
-        )
+        self.user = get_user_model().objects.create_user(email="test@test.test", password="test_password")
         self.client.force_authenticate(self.user)
 
     def test_user_detail(self):
@@ -51,10 +48,7 @@ class AuthenticatedUser(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
     def test_update_user_profile(self):
-        payload = {
-            "first_name": "NewName",
-            "last_name": "NewLastName"
-        }
+        payload = {"first_name": "NewName", "last_name": "NewLastName"}
         res = self.client.patch(USER_DETAIL_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
