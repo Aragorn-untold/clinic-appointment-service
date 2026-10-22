@@ -5,7 +5,6 @@ from rest_framework import status
 
 from core.tests.base import BaseTestCase
 from doctors.models import Doctor
-from doctors.serializers import DoctorSerializer
 from specializations.models import Specialization
 
 DOCTOR_LIST_URL = reverse("doctors:doctor-list")
@@ -19,18 +18,10 @@ class DoctorApiTests(BaseTestCase):
     @classmethod
     def setUpTestData(cls) -> None:
         super().setUpTestData()
-        cls.specialization_2 = Specialization.objects.create(
-            name="pediatrics",
-            code="pediatrics"
-        )
-        cls.specialization_3 = Specialization.objects.create(
-            name="Family doctor",
-            code="family-medicine"
-        )
+        cls.specialization_2 = Specialization.objects.create(name="pediatrics", code="pediatrics")
+        cls.specialization_3 = Specialization.objects.create(name="Family doctor", code="family-medicine")
         cls.doctor_2 = Doctor.objects.create(
-            first_name="Ms test 2",
-            last_name="testtest",
-            price_per_visit=Decimal("10.45")
+            first_name="Ms test 2", last_name="testtest", price_per_visit=Decimal("10.45")
         )
         cls.doctor_2.specializations.set([cls.specialization_2, cls.specialization_3])
 
@@ -50,17 +41,13 @@ class DoctorApiTests(BaseTestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
     def test_anonymous_cannot_create_doctor(self):
-        res = self.client.post(
-            DOCTOR_LIST_URL, self.doctor_payload(), format="json"
-        )
+        res = self.client.post(DOCTOR_LIST_URL, self.doctor_payload(), format="json")
 
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertFalse(Doctor.objects.filter(last_name="Bobovich").exists())
 
     def test_patient_cannot_create_doctor(self):
-        res = self.auth_client.post(
-            DOCTOR_LIST_URL, self.doctor_payload(), format="json"
-        )
+        res = self.auth_client.post(DOCTOR_LIST_URL, self.doctor_payload(), format="json")
 
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(Doctor.objects.filter(last_name="Bobovich").exists())
@@ -81,36 +68,28 @@ class DoctorApiTests(BaseTestCase):
         )
 
     def test_filter_doctors_by_specialization_id(self):
-        res = self.client.get(
-            DOCTOR_LIST_URL, {"specialization": self.specialization.id}
-        )
+        res = self.client.get(DOCTOR_LIST_URL, {"specialization": self.specialization.id})
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         returned_ids = {doctor["id"] for doctor in res.data}
         self.assertEqual(returned_ids, {self.doctor.id})
 
     def test_filter_doctors_by_specialization_code(self):
-        res = self.client.get(
-            DOCTOR_LIST_URL, {"specialization": self.specialization.code}
-        )
+        res = self.client.get(DOCTOR_LIST_URL, {"specialization": self.specialization.code})
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         returned_ids = {doctor["id"] for doctor in res.data}
         self.assertEqual(returned_ids, {self.doctor.id})
 
     def test_filter_by_specialization_code_with_hyphen(self):
-        res = self.client.get(
-            DOCTOR_LIST_URL, {"specialization": self.specialization_3.code}
-        )
+        res = self.client.get(DOCTOR_LIST_URL, {"specialization": self.specialization_3.code})
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         returned_ids = {doctor["id"] for doctor in res.data}
         self.assertEqual(returned_ids, {self.doctor_2.id})
 
     def test_filter_doctors_by_nonexistent_specialization(self):
-        res = self.client.get(
-            DOCTOR_LIST_URL, {"specialization": "astrology"}
-        )
+        res = self.client.get(DOCTOR_LIST_URL, {"specialization": "astrology"})
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, [])

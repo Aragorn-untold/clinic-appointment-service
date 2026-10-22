@@ -7,21 +7,12 @@ from specializations.models import Specialization
 
 class DoctorSerializer(serializers.ModelSerializer):
     specializations = SlugRelatedField(
-        many=True,
-        slug_field="code",
-        queryset=Specialization.objects.all(),
-        allow_empty=False
+        many=True, slug_field="code", queryset=Specialization.objects.all(), allow_empty=False
     )
 
     class Meta:
         model = Doctor
-        fields = (
-            "id",
-            "first_name",
-            "last_name",
-            "specializations",
-            "price_per_visit"
-        )
+        fields = ("id", "first_name", "last_name", "specializations", "price_per_visit")
         extra_kwargs = {"price_per_visit": {"min_value": 0}}
 
 
