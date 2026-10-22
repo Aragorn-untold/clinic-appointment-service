@@ -1,0 +1,21 @@
+# coverage run manage.py test && coverage report
+[run]
+source = .
+branch = true
+omit =
+    */migrations/*
+    */tests/*
+    */tests.py
+    manage.py
+    core/asgi.py
+    core/wsgi.py
+    .venv/*
+
+[report]
+show_missing = true
+skip_covered = true
+# Plan (Q.6): CI fails below 60%
+fail_under = 60
+
+[html]
+directory = htmlcov

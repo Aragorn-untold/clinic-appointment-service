@@ -3,16 +3,22 @@ Online appointment management system that allows patients to register, browse do
 
 ## Contributing rules
 
-- **Never commit or push directly to `main`.**
-- Create your own branch from an up-to-date `main` for every change:
+- **`develop` is the working branch.** All work is integrated there.
+- **`main` is read-only.** Do not commit, push, or open Pull Requests into `main`.
+- **Never commit or push directly to `develop`.**
+- Each developer works on their own branch named `<username>-develop`, created from an up-to-date `develop`:
   ```bash
-  git checkout main
-  git pull origin main
-  git checkout -b <your-name>/<short-description>   # e.g. alex/booking-endpoint
+  git checkout develop
+  git pull origin develop
+  git checkout -b <username>-develop   # e.g. alex-develop
   ```
-- Push your branch and open a Pull Request into `main`.
+- Push your branch and open a Pull Request into `develop`.
 - A PR can be merged only after **at least 2 approvals** from other developers.
-- Keep your branch up to date with `main` and resolve conflicts on your branch, not on `main`.
+- Keep your branch up to date with `develop` and resolve conflicts on your branch, not on `develop`:
+  ```bash
+  git checkout <username>-develop
+  git pull origin develop
+  ```
 - Never commit `.env`, `db.sqlite3`, virtualenvs or `__pycache__` (they are in `.gitignore`).
 
 ## Requirements
@@ -25,6 +31,8 @@ Online appointment management system that allows patients to register, browse do
 ```bash
 git clone https://github.com/Aragorn-untold/clinic-appointment-service.git
 cd clinic-appointment-service
+git checkout develop
+git checkout -b <username>-develop
 
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
@@ -96,6 +104,80 @@ python manage.py createsuperuser
 ```
 
 **Note:** The fixture uses fixed primary keys for its sample records. Load it into a fresh local database after migrations. Avoid loading it repeatedly into a database that already contains conflicting records.
+
+## Tests
+
+Tests use Django's built-in test runner (`unittest`), no pytest.
+
+```bash
+python manage.py test                    # all tests
+python manage.py test appointments       # one app
+python manage.py test users.tests.test_models.UserPatientTests  # one class
+```
+
+Tests run against a temporary test database created from your current DB settings. To use SQLite even when `POSTGRES_DB` is set in `.env` (e.g. Postgres is not running):
+
+```bash
+POSTGRES_DB= python manage.py test
+```
+
+### Writing tests
+
+- Put tests in `<app>/tests/test_*.py` (the `tests/` folder needs an `__init__.py`).
+- Inherit from `core.tests.base.BaseTestCase` to get shared data instead of creating it in every file:
+
+  | Attribute | What |
+  |---|---|
+  | `self.user` / `self.admin_user` | Regular patient / superuser (password: `core.tests.base.PASSWORD`) |
+  | `self.specialization`, `self.doctor` | Cardiology, doctor linked to it, price `800.00` |
+  | `self.slot` | 30-minute slot tomorrow for `self.doctor` |
+  | `self.appointment` | `BOOKED` appointment of `self.user` on `self.slot` |
+  | `self.client` / `self.auth_client` / `self.admin_client` | `APIClient`: anonymous / logged in as `user` / as `admin_user` |
+
+  ```python
+  # example: once the appointments endpoints exist
+  from core.tests.base import BaseTestCase
+
+
+  class AppointmentApiTests(BaseTestCase):
+      def test_patient_sees_own_appointments(self):
+          response = self.auth_client.get("/appointments/")
+          self.assertEqual(response.status_code, 200)
+  ```
+
+  Shared data is created once per test class and rolled back after it. `self.slot` is already booked, so create a new slot when a test needs a free one.
+- Never call Stripe or Telegram from tests: replace them with `unittest.mock.patch`. Run Celery tasks inline with `@override_settings(CELERY_TASK_ALWAYS_EAGER=True)`.
+- A PR that adds code without tests for it is not approved.
+
+## Coverage
+
+Settings are in `.coveragerc` (migrations, tests, `manage.py`, `asgi.py`, `wsgi.py` are excluded).
+
+```bash
+coverage run manage.py test
+coverage report        # table in the terminal, fails if total coverage < 60%
+coverage html          # detailed report in htmlcov/index.html
+```
+
+## Code style (ruff)
+
+[ruff](https://docs.astral.sh/ruff/) is both the linter and the formatter. Settings are in `ruff.toml`: line length 120, migrations are skipped, imports are sorted (stdlib → third-party → project apps). The version is pinned in `requirements.txt` so everyone gets the same results.
+
+```bash
+ruff check .               # find problems
+ruff check --fix .         # fix what can be fixed automatically (unused/unsorted imports, ...)
+ruff format .              # format code
+ruff format --check .      # only check formatting (what CI runs)
+```
+
+## Before opening a PR
+
+```bash
+ruff check . && ruff format --check .
+coverage run manage.py test && coverage report
+```
+
+All of them must pass.
 
 
 ## URLs
