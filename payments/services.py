@@ -1,10 +1,10 @@
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
-import stripe
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 from django.urls import NoReverseMatch, reverse
+import stripe
 
 from payments.models import Payment
 
@@ -22,7 +22,7 @@ class PaymentService:
     @classmethod
     def calculate_amount(
         cls,
-        base_price: Decimal | str | int,
+ base_price: Decimal | str | int,
         payment_type: str,
         rounding: str = ROUND_HALF_UP,
     ) -> Decimal:

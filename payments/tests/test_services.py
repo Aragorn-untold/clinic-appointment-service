@@ -1,12 +1,14 @@
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
+
 from django.test import SimpleTestCase
+
 from core.tests.base import BaseTestCase
 from payments.models import Payment
 from payments.services import PaymentService
 
 
-# ---------- Calculation Tests ---------- 
+# ---------- Calculation Tests ----------
 class PaymentServiceCalculationTests(SimpleTestCase):
 
     def test_consultation_amount(self):
@@ -63,7 +65,7 @@ class PaymentServiceCalculationTests(SimpleTestCase):
         )
 
 
-# ---------- Stripe API ---------- 
+# ---------- Stripe API ----------
 class PaymentServiceStripeTests(BaseTestCase):
 
     @patch("stripe.checkout.Session.create")
