@@ -12,7 +12,6 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class PaymentService:
-
     RATE_COEFFICIENTS = {
         Payment.Type.CONSULTATION: Decimal("1.0"),
         Payment.Type.CANCELLATION_FEE: Decimal("0.5"),
@@ -22,7 +21,7 @@ class PaymentService:
     @classmethod
     def calculate_amount(
         cls,
- base_price: Decimal | str | int,
+        base_price: Decimal | str | int,
         payment_type: str,
         rounding: str = ROUND_HALF_UP,
     ) -> Decimal:
@@ -37,9 +36,7 @@ class PaymentService:
 
         if payment_type not in cls.RATE_COEFFICIENTS:
             valid_types = ", ".join(cls.RATE_COEFFICIENTS.keys())
-            raise ValueError(
-                f"Unknown payment type '{payment_type}'. Valid: {valid_types}"
-            )
+            raise ValueError(f"Unknown payment type '{payment_type}'. Valid: {valid_types}")
 
         coefficient = cls.RATE_COEFFICIENTS[payment_type]
         amount = base_price * coefficient
@@ -51,9 +48,7 @@ class PaymentService:
         if not isinstance(amount, Decimal):
             amount = Decimal(str(amount))
 
-        cents = (amount * Decimal("100")).quantize(
-            Decimal("1"), rounding=ROUND_HALF_UP
-        )
+        cents = (amount * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         return int(cents)
 
     @classmethod
@@ -73,43 +68,41 @@ class PaymentService:
             return existing_payment
 
         if request is not None:
-            base_url = request.build_absolute_uri('/')[:-1]
+            base_url = request.build_absolute_uri("/")[:-1]
         else:
-            base_url = getattr(settings, 'SITE_URL', 'http://localhost:8000')
-            if base_url.endswith('/'):
+            base_url = getattr(settings, "SITE_URL", "http://localhost:8000")
+            if base_url.endswith("/"):
                 base_url = base_url[:-1]
 
         money_to_pay = cls.calculate_amount(appointment.price, payment_type)
         stripe_cents = cls.to_stripe_cents(money_to_pay)
 
         try:
-            success_path = reverse('payments:success')
-            cancel_path = reverse('payments:cancel')
+            success_path = reverse("payments:success")
+            cancel_path = reverse("payments:cancel")
         except NoReverseMatch:
-            success_path = '/payments/success/'
-            cancel_path = '/payments/cancel/'
+            success_path = "/payments/success/"
+            cancel_path = "/payments/cancel/"
 
-        success_url = (
-            f"{base_url}{success_path}?session_id={{CHECKOUT_SESSION_ID}}"
-        )
+        success_url = f"{base_url}{success_path}?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{base_url}{cancel_path}"
 
         try:
             stripe_session = stripe.checkout.Session.create(
-                line_items=[{
-                    'price_data': {
-                        'currency': 'usd',
-                        'product_data': {
-                            'name': (
-                                f"Payment for Appointment #{appointment.id}"
-                            ),
-                            'description': f"Type: {payment_type}",
+                line_items=[
+                    {
+                        "price_data": {
+                            "currency": "usd",
+                            "product_data": {
+                                "name": (f"Payment for Appointment #{appointment.id}"),
+                                "description": f"Type: {payment_type}",
+                            },
+                            "unit_amount": stripe_cents,
                         },
-                        'unit_amount': stripe_cents,
-                    },
-                    'quantity': 1,
-                }],
-                mode='payment',
+                        "quantity": 1,
+                    }
+                ],
+                mode="payment",
                 success_url=success_url,
                 cancel_url=cancel_url,
                 metadata={
@@ -118,9 +111,7 @@ class PaymentService:
                 },
             )
         except stripe.error.StripeError as exc:
-            raise RuntimeError(
-                f"Stripe error: {exc.user_message or str(exc)}"
-            ) from exc
+            raise RuntimeError(f"Stripe error: {exc.user_message or str(exc)}") from exc
 
         try:
             with transaction.atomic():
