@@ -1,15 +1,15 @@
+from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.utils import timezone
 
 from appointments.models import Appointment
-from payments.models import Payment
-from django.contrib.auth import get_user_model
-from doctors.models import Doctor
 from doctor_slots.models import DoctorSlot
-from datetime import timedelta
-from django.utils import timezone
+from doctors.models import Doctor
+from payments.models import Payment
 
 
 class PaymentTests(TestCase):
@@ -44,6 +44,5 @@ class PaymentTests(TestCase):
         }
         Payment.objects.create(**payment_data)
 
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                Payment.objects.create(**payment_data)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Payment.objects.create(**payment_data)

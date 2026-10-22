@@ -28,13 +28,9 @@ class UserPatientTests(TestCase):
             self.user_model.objects.create_user(email="", password=PASSWORD)
 
     def test_email_is_unique(self):
-        self.user_model.objects.create_user(
-            email="patient@example.com", password=PASSWORD
-        )
+        self.user_model.objects.create_user(email="patient@example.com", password=PASSWORD)
         with self.assertRaises(IntegrityError):
-            self.user_model.objects.create_user(
-                email="patient@example.com", password=PASSWORD
-            )
+            self.user_model.objects.create_user(email="patient@example.com", password=PASSWORD)
 
     def test_create_superuser(self):
         admin = self.user_model.objects.create_superuser(

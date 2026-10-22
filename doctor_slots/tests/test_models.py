@@ -3,8 +3,8 @@ from datetime import timedelta
 from django.test import TestCase
 from django.utils import timezone
 
-from doctors.models import Doctor
 from doctor_slots.models import DoctorSlot
+from doctors.models import Doctor
 
 
 class DoctorSlotTests(TestCase):

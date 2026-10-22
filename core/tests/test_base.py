@@ -19,7 +19,5 @@ class BaseTestCaseTests(BaseTestCase):
 
     def test_clients_are_authenticated_as_expected_users(self):
         self.assertEqual(self.auth_client.handler._force_user, self.user)
-        self.assertEqual(
-            self.admin_client.handler._force_user, self.admin_user
-        )
+        self.assertEqual(self.admin_client.handler._force_user, self.admin_user)
         self.assertIsNone(self.client.handler._force_user)
