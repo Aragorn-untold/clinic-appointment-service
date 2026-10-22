@@ -1,10 +1,10 @@
 from decimal import ROUND_HALF_UP, Decimal
 
+import stripe
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 from django.urls import NoReverseMatch, reverse
-import stripe
 
 from payments.models import Payment
 
