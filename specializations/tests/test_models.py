@@ -15,7 +15,7 @@ class SpecializationTests(TestCase):
         self.assertEqual(str(self.specialization), "Cardiology")
 
     def test_description_is_optional(self):
-        self.assertIsNone(self.specialization.description)
+        self.assertEqual(self.specialization.description, "")
 
     def test_name_and_code_are_unique(self):
         duplicates = (

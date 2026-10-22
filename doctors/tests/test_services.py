@@ -1,4 +1,5 @@
 from datetime import date, datetime, time
+from itertools import pairwise
 
 from django.test import SimpleTestCase
 
@@ -27,7 +28,7 @@ class GenerateSlotsTests(SimpleTestCase):
 
         for start, end in slots:
             self.assertEqual((end - start).total_seconds(), 20 * 60)
-        for (_, prev_end), (next_start, _) in zip(slots, slots[1:]):
+        for (_, prev_end), (next_start, _) in pairwise(slots):
             self.assertEqual(prev_end, next_start)
 
     def test_slots_are_on_given_date(self):
@@ -59,27 +60,19 @@ class GenerateSlotsTests(SimpleTestCase):
             self.assertIsNone(end.tzinfo)
 
     def test_start_equal_to_end_raises(self):
-        with self.assertRaisesMessage(
-            ValueError, "start_time must be earlier than end_time"
-        ):
+        with self.assertRaisesMessage(ValueError, "start_time must be earlier than end_time"):
             generate_slots(self.workday, time(9, 0), time(9, 0), 30)
 
     def test_start_after_end_raises(self):
-        with self.assertRaisesMessage(
-            ValueError, "start_time must be earlier than end_time"
-        ):
+        with self.assertRaisesMessage(ValueError, "start_time must be earlier than end_time"):
             generate_slots(self.workday, time(18, 0), time(9, 0), 30)
 
     def test_zero_slot_length_raises(self):
-        with self.assertRaisesMessage(
-            ValueError, "slot_length_minutes must be positive, got 0"
-        ):
+        with self.assertRaisesMessage(ValueError, "slot_length_minutes must be positive, got 0"):
             generate_slots(self.workday, time(9, 0), time(17, 0), 0)
 
     def test_negative_slot_length_raises(self):
-        with self.assertRaisesMessage(
-            ValueError, "slot_length_minutes must be positive, got -15"
-        ):
+        with self.assertRaisesMessage(ValueError, "slot_length_minutes must be positive, got -15"):
             generate_slots(self.workday, time(9, 0), time(17, 0), -15)
 
     def test_slot_longer_than_workday_returns_empty_list(self):
