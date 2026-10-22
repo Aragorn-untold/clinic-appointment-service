@@ -1,5 +1,3 @@
-from typing import Any
-
 from rest_framework import serializers
 from rest_framework.relations import SlugRelatedField
 
@@ -24,8 +22,7 @@ class DoctorSerializer(serializers.ModelSerializer):
             "specializations",
             "price_per_visit"
         )
-
-from rest_framework import serializers
+        extra_kwargs = {"price_per_visit": {"min_value": 0}}
 
 
 class DoctorDetailSerializer(serializers.Serializer):
