@@ -1,0 +1,128 @@
+[
+  {
+    "model": "specializations.specialization",
+    "pk": 1,
+    "fields": {
+      "name": "Cardiology",
+      "code": "cardiology",
+      "description": "Diagnosis and treatment of heart diseases."
+    }
+  },
+  {
+    "model": "specializations.specialization",
+    "pk": 2,
+    "fields": {
+      "name": "Neurology",
+      "code": "neurology",
+      "description": "Diagnosis and treatment of nervous system disorders."
+    }
+  },
+  {
+    "model": "specializations.specialization",
+    "pk": 3,
+    "fields": {
+      "name": "Dermatology",
+      "code": "dermatology",
+      "description": "Diagnosis and treatment of skin conditions."
+    }
+  },
+  {
+    "model": "doctors.doctor",
+    "pk": 1,
+    "fields": {
+      "first_name": "Olena",
+      "last_name": "Kovalenko",
+      "specializations": [1],
+      "price_per_visit": "800.00"
+    }
+  },
+  {
+    "model": "doctors.doctor",
+    "pk": 2,
+    "fields": {
+      "first_name": "Andrii",
+      "last_name": "Melnyk",
+      "specializations": [2],
+      "price_per_visit": "700.00"
+    }
+  },
+  {
+    "model": "doctors.doctor",
+    "pk": 3,
+    "fields": {
+      "first_name": "Iryna",
+      "last_name": "Shevchenko",
+      "specializations": [1, 3],
+      "price_per_visit": "900.00"
+    }
+  },
+    {
+    "model": "doctor_slots.doctorslot",
+    "pk": 1,
+    "fields": {
+      "doctor": 1,
+      "start": "2027-01-10T09:00:00Z",
+      "end": "2027-01-10T09:30:00Z"
+    }
+  },
+  {
+    "model": "doctor_slots.doctorslot",
+    "pk": 2,
+    "fields": {
+      "doctor": 2,
+      "start": "2027-01-10T10:00:00Z",
+      "end": "2027-01-10T10:30:00Z"
+    }
+  },
+  {
+    "model": "doctor_slots.doctorslot",
+    "pk": 3,
+    "fields": {
+      "doctor": 3,
+      "start": "2027-01-10T11:00:00Z",
+      "end": "2027-01-10T11:30:00Z"
+    }
+  }
+  ,
+  {
+    "model": "users.userpatient",
+    "pk": 2,
+    "fields": {
+      "password": "!",
+      "last_login": null,
+      "is_superuser": false,
+      "first_name": "Test",
+      "last_name": "Patient",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-10-21T12:00:00Z",
+      "email": "patient@example.com"
+    }
+  }
+  ,
+  {
+    "model": "appointments.appointment",
+    "pk": 1,
+    "fields": {
+      "doctor_slot": 1,
+      "patient": 2,
+      "status": "BOOKED",
+      "booked_at": "2026-10-21T12:00:00Z",
+      "completed_at": null,
+      "price": "800.00"
+    }
+  }
+  ,
+  {
+    "model": "payments.payment",
+    "pk": 1,
+    "fields": {
+      "appointment": 1,
+      "status": "PENDING",
+      "type": "CONSULTATION",
+      "session_url": "https://example.com/payments/session-1",
+      "session_id": "test-session-1",
+      "money_to_pay": "800.00"
+    }
+  }
+]
