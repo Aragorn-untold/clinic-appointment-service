@@ -62,9 +62,7 @@ class CancelAppointmentTests(AppointmentServiceTestsBase):
                 type=Payment.Type.CANCELLATION_FEE,
             ).exists()
         )
-        notify_mock.assert_called_once_with(
-            appointment_cancelled(self.appointment)
-        )
+        notify_mock.assert_called_once_with(appointment_cancelled(self.appointment))
 
     @patch("appointments.services.PaymentService.create_payment_for_appointment")
     @patch("appointments.services.notify_admins")
@@ -129,9 +127,7 @@ class CompleteAppointmentTests(AppointmentServiceTestsBase):
             Payment.Type.CONSULTATION,
             None,
         )
-        notify_mock.assert_called_once_with(
-            appointment_completed(self.appointment)
-        )
+        notify_mock.assert_called_once_with(appointment_completed(self.appointment))
 
     @patch("appointments.services.PaymentService.create_payment_for_appointment")
     @patch("appointments.services.notify_admins")
@@ -171,9 +167,7 @@ class MarkNoShowTests(AppointmentServiceTestsBase):
             Payment.Type.NO_SHOW_FEE,
             None,
         )
-        notify_mock.assert_called_once_with(
-            appointment_no_show(self.appointment)
-        )
+        notify_mock.assert_called_once_with(appointment_no_show(self.appointment))
 
     @patch("appointments.services.PaymentService.create_payment_for_appointment")
     @patch("appointments.services.notify_admins")
