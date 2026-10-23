@@ -14,6 +14,11 @@ from appointments.services import (
 )
 from doctor_slots.models import DoctorSlot
 from doctors.models import Doctor
+from notifications.messages import (
+    appointment_cancelled,
+    appointment_completed,
+    appointment_no_show,
+)
 from payments.models import Payment
 
 
@@ -58,7 +63,7 @@ class CancelAppointmentTests(AppointmentServiceTestsBase):
             ).exists()
         )
         notify_mock.assert_called_once_with(
-            f"Appointment #{self.appointment.pk} cancelled"
+            appointment_cancelled(self.appointment)
         )
 
     @patch("appointments.services.PaymentService.create_payment_for_appointment")
@@ -125,7 +130,7 @@ class CompleteAppointmentTests(AppointmentServiceTestsBase):
             None,
         )
         notify_mock.assert_called_once_with(
-            f"Appointment #{self.appointment.pk} completed"
+            appointment_completed(self.appointment)
         )
 
     @patch("appointments.services.PaymentService.create_payment_for_appointment")
@@ -167,7 +172,7 @@ class MarkNoShowTests(AppointmentServiceTestsBase):
             None,
         )
         notify_mock.assert_called_once_with(
-            f"Appointment #{self.appointment.pk} no-show"
+            appointment_no_show(self.appointment)
         )
 
     @patch("appointments.services.PaymentService.create_payment_for_appointment")
