@@ -13,6 +13,7 @@ class Command(BaseCommand):
     DO NOT USE IT
     won't work anyway
     """
+
     def handle(self, *args, **options):
         if not settings.TELEGRAM_BOT_TOKEN:
             raise ValueError("There is no Telegram bot token in settings")
