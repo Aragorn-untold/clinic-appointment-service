@@ -1,16 +1,10 @@
 from django.db import IntegrityError, transaction
-from django.test import TestCase
 
+from core.tests.base import BaseTestCase
 from specializations.models import Specialization
 
 
-class SpecializationTests(TestCase):
-    def setUp(self):
-        self.specialization = Specialization.objects.create(
-            name="Cardiology",
-            code="cardiology",
-        )
-
+class SpecializationTests(BaseTestCase):
     def test_str_returns_name(self):
         self.assertEqual(str(self.specialization), "Cardiology")
 
