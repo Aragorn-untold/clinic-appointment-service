@@ -12,7 +12,7 @@ from payments.serializers import PaymentSerializer
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
 
@@ -20,6 +20,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
         if getattr(self, "swagger_fake_view", False):
             return Payment.objects.none()
         user = self.request.user
+        if user.is_staff:
+            return Payment.objects.all()
         return Payment.objects.filter(appointment__patient=user)
 
 

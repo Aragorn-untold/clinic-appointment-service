@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import stripe
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
@@ -141,3 +142,12 @@ class RenewPaymentViewTests(BaseTestCase):
         self.client.force_authenticate(user=other_user)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, 404)
+
+    @patch("stripe.checkout.Session.create")
+    def test_renew_stripe_error_returns_400(self, mock_create):
+        mock_create.side_effect = stripe.error.StripeError("Stripe API error")
+
+        response = self.auth_client.post(self.url)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.data)
