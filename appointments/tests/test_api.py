@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from appointments.models import Appointment
 from doctor_slots.models import DoctorSlot
 from doctors.models import Doctor
+from notifications.messages import appointment_booked
 from specializations.models import Specialization
 
 
@@ -143,7 +144,8 @@ class AppointmentAPITests(TestCase):
                 status=Appointment.Status.BOOKED,
             ).exists()
         )
-        notify_mock.assert_called_once_with(f"Appointment #{response.data['id']} booked")
+        appointment = Appointment.objects.get(pk=response.data["id"])
+        notify_mock.assert_called_once_with(appointment_booked(appointment))
 
     def test_cannot_book_an_already_booked_slot(self):
         self.client.force_authenticate(user=self.other_patient)
