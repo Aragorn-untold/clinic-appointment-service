@@ -1,6 +1,7 @@
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
+from django.conf import settings
 from django.test import SimpleTestCase
 
 from core.tests.base import BaseTestCase
@@ -73,8 +74,6 @@ class PaymentServiceStripeTests(BaseTestCase):
         call_kwargs = mock_stripe_create.call_args.kwargs
         line_item = call_kwargs["line_items"][0]
         self.assertEqual(line_item["price_data"]["unit_amount"], 80000)
-
-        from django.conf import settings
 
         site_url = settings.SITE_URL.rstrip("/")
         self.assertTrue(call_kwargs["success_url"].startswith(site_url))
