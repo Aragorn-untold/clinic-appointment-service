@@ -51,7 +51,6 @@ class PaymentService:
         cents = (amount * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         return int(cents)
 
-
     @classmethod
     def _get_redirect_urls(cls, request: HttpRequest | None = None) -> tuple[str, str]:
         if request is not None:
