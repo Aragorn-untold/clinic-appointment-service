@@ -1,9 +1,9 @@
 from django.db import transaction
-from django.db.models import OuterRef, Exists
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -18,6 +18,54 @@ from doctors.serializers import DoctorSerializer
 from doctors.services import generate_slots
 
 
+@extend_schema(tags=["Doctors"])
+@extend_schema_view(
+    retrieve=extend_schema(
+        summary="Retrieve a doctor",
+        description="Available to everyone, including anonymous users.",
+        responses={
+            200: DoctorSerializer,
+            404: OpenApiResponse(description="Doctor not found."),
+        },
+    ),
+    create=extend_schema(
+        summary="Create a doctor",
+        description=(
+            "Admin only. `specializations` is a non-empty list of specialization "
+            'codes, e.g. `["cardiology"]`. `price_per_visit` must not be negative.'
+        ),
+        responses={
+            201: DoctorSerializer,
+            400: OpenApiResponse(description="Validation error."),
+        },
+    ),
+    update=extend_schema(
+        summary="Update a doctor",
+        description="Admin only. All fields are required.",
+        responses={
+            200: DoctorSerializer,
+            400: OpenApiResponse(description="Validation error."),
+            404: OpenApiResponse(description="Doctor not found."),
+        },
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a doctor",
+        description="Admin only. Only the passed fields are changed.",
+        responses={
+            200: DoctorSerializer,
+            400: OpenApiResponse(description="Validation error."),
+            404: OpenApiResponse(description="Doctor not found."),
+        },
+    ),
+    destroy=extend_schema(
+        summary="Delete a doctor",
+        description="Admin only.",
+        responses={
+            204: None,
+            404: OpenApiResponse(description="Doctor not found."),
+        },
+    ),
+)
 class DoctorViewSet(viewsets.ModelViewSet):
     queryset = Doctor.objects.prefetch_related("specializations").order_by("last_name", "first_name")
     serializer_class = DoctorSerializer
@@ -36,11 +84,25 @@ class DoctorViewSet(viewsets.ModelViewSet):
         return queryset
 
     @extend_schema(
+        tags=["Slots"],
+        summary="Bulk-create doctor's slots",
         request=BulkSlotCreateSerializer,
-        responses={201: DoctorSlotSerializer(many=True)},
+        responses={
+            201: DoctorSlotSerializer(many=True),
+            400: OpenApiResponse(
+                description=(
+                    "Validation error: `end_time` is not later than `start_time`, "
+                    "`date` is in the past or `slot_length_minutes` is out of 5-240."
+                )
+            ),
+            404: OpenApiResponse(description="Doctor not found."),
+        },
         description=(
-            "Bulk-create slots for the doctor. Slots overlapping existing "
-            "ones are skipped. Returns only the created slots."
+            "Admin only. Splits `start_time`-`end_time` on `date` into consecutive "
+            "slots of `slot_length_minutes` (times are in the project time zone). "
+            "A remainder shorter than one slot is dropped. Slots overlapping "
+            "existing ones are skipped. Returns only the created slots, so the "
+            "list may be empty."
         ),
     )
     @action(
@@ -108,8 +170,14 @@ class DoctorViewSet(viewsets.ModelViewSet):
         return parsed
 
     @extend_schema(
+        tags=["Slots"],
         summary="List doctor's slots",
-        responses=DoctorSlotSerializer(many=True),
+        description="Available to everyone. Slots are ordered by `start`.",
+        responses={
+            200: DoctorSlotSerializer(many=True),
+            400: OpenApiResponse(description="`from` or `to` is not a valid ISO 8601 datetime."),
+            404: OpenApiResponse(description="Doctor not found."),
+        },
         parameters=[
             OpenApiParameter(
                 name="from",
@@ -172,6 +240,8 @@ class DoctorViewSet(viewsets.ModelViewSet):
         )
 
     @extend_schema(
+        summary="List doctors",
+        description="Available to everyone. Doctors are ordered by last and first name.",
         parameters=[
             OpenApiParameter(
                 name="specialization",
@@ -185,7 +255,7 @@ class DoctorViewSet(viewsets.ModelViewSet):
                 ),
                 required=False,
             ),
-        ]
+        ],
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
