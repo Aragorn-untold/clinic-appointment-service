@@ -1,11 +1,15 @@
 from django.db import transaction
+from django.db.models import OuterRef, Exists
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
+from appointments.models import Appointment
 from core.permissions import IsAdminOrReadOnly
 from doctor_slots.models import DoctorSlot
 from doctor_slots.serializers import BulkSlotCreateSerializer, DoctorSlotSerializer
@@ -85,6 +89,88 @@ class DoctorViewSet(viewsets.ModelViewSet):
         return Response(
             DoctorSlotSerializer(created, many=True).data,
             status=status.HTTP_201_CREATED,
+        )
+
+    def _parse_datetime_param(self, name):
+        value = self.request.query_params.get(name)
+        if not value:
+            return None
+
+        try:
+            parsed = parse_datetime(value)
+        except ValueError:  # правильний формат, неможлива дата
+            parsed = None
+        if parsed is None:  # «сміття»
+            raise ValidationError({name: ["Invalid date"]})
+
+        if timezone.is_naive(parsed):
+            parsed = timezone.make_aware(parsed)
+        return parsed
+
+    @extend_schema(
+        summary="List doctor's slots",
+        responses=DoctorSlotSerializer(many=True),
+        parameters=[
+            OpenApiParameter(
+                name="from",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                        "Only slots starting at or after this moment (ISO 8601), "
+                        "e.g. `2026-10-30T09:00`. Without a time zone offset the "
+                        "project time zone is used."
+                ),
+            ),
+            OpenApiParameter(
+                name="to",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                        "Only slots ending at or before this moment (ISO 8601), "
+                        "e.g. `2026-10-30T13:00`. Without a time zone offset the "
+                        "project time zone is used."
+                ),
+            ),
+            OpenApiParameter(
+                name="available_only",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                        "`true` returns only slots without a BOOKED appointment. "
+                        "Any other value or no value returns all slots."
+                ),
+            ),
+        ],
+    )
+    @slots.mapping.get
+    def get_slots(self, request, pk=None):
+        doctor = self.get_object()
+        doctor_slots = doctor.slots.order_by("start")
+        from_time = self._parse_datetime_param("from")
+        to_time = self._parse_datetime_param("to")
+        available_only = request.query_params.get("available_only", "").lower() == "true"
+
+        if from_time:
+            doctor_slots = doctor_slots.filter(start__gte=from_time)
+
+        if to_time:
+            doctor_slots = doctor_slots.filter(end__lte=to_time)
+
+        if available_only:
+            booked = Appointment.objects.filter(
+                doctor_slot=OuterRef("pk"),
+                status=Appointment.Status.BOOKED,
+            )
+            doctor_slots = doctor_slots.annotate(is_booked=Exists(booked)).filter(
+                is_booked=False
+            )
+
+        return Response(
+            DoctorSlotSerializer(doctor_slots, many=True).data,
+            status=status.HTTP_200_OK,
         )
 
     @extend_schema(
