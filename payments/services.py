@@ -124,3 +124,16 @@ class PaymentService:
             )
 
         return payment
+
+    @classmethod
+    def expire_stale_sessions(cls) -> int:
+        pending = Payment.objects.filter(status=Payment.Status.PENDING)
+        expired_ids = []
+        for payment in pending:
+            try:
+                session = stripe.checkout.Session.retrieve(payment.session_id)
+            except stripe.error.StripeError:
+                continue
+            if session.status == "expired":
+                expired_ids.append(payment.pk)
+        return Payment.objects.filter(pk__in=expired_ids).update(status=Payment.Status.EXPIRED)
