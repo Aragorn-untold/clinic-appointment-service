@@ -39,6 +39,12 @@ SITE_URL = os.getenv("SITE_URL", "http://localhost:8000")
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CELERY_TIMEZONE = "Europe/Kyiv"
 CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_BEAT_SCHEDULE = {
+    "expire-stale-payment-sessions": {
+        "task": "payments.tasks.expire_stale_payment_sessions",
+        "schedule": 30 * 60,
+    },
+}
 
 # Telegram
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
