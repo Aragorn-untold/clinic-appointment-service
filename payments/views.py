@@ -1,6 +1,6 @@
 import stripe
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,6 +9,15 @@ from rest_framework.views import APIView
 from payments.models import Payment
 from payments.serializers import PaymentSerializer
 from payments.services import PaymentService
+
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    serializer_class = PaymentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Payment.objects.filter(appointment__patient=user)
 
 
 class PaymentSuccessView(APIView):
