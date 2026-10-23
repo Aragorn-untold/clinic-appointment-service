@@ -1,9 +1,6 @@
 from datetime import timedelta
-from decimal import Decimal
 from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
-from django.test import TestCase
 from django.utils import timezone
 
 from appointments.models import Appointment
@@ -12,8 +9,7 @@ from appointments.services import (
     complete_appointment,
     mark_no_show,
 )
-from doctor_slots.models import DoctorSlot
-from doctors.models import Doctor
+from core.tests.base import BaseTestCase
 from notifications.messages import (
     appointment_cancelled,
     appointment_completed,
@@ -22,33 +18,14 @@ from notifications.messages import (
 from payments.models import Payment
 
 
-class AppointmentServiceTestsBase(TestCase):
-    def setUp(self):
-        self.patient = get_user_model().objects.create_user(
-            email="patient@example.com",
-            password="test-password",
-        )
-        self.doctor = Doctor.objects.create(
-            first_name="Olena",
-            last_name="Kovalenko",
-            price_per_visit=Decimal("800.00"),
-        )
-        start = timezone.now() + timedelta(days=2)
-        self.slot = DoctorSlot.objects.create(
-            doctor=self.doctor,
-            start=start,
-            end=start + timedelta(minutes=30),
-        )
-        self.appointment = Appointment.objects.create(
-            doctor_slot=self.slot,
-            patient=self.patient,
-            price=Decimal("800.00"),
-        )
-
-
-class CancelAppointmentTests(AppointmentServiceTestsBase):
+class CancelAppointmentTests(BaseTestCase):
+    @patch("appointments.services.PaymentService.create_payment_for_appointment")
     @patch("appointments.services.notify_admins")
-    def test_cancel_more_than_24_hours_before_without_fee(self, notify_mock):
+    def test_cancel_more_than_24_hours_before_without_fee(
+        self,
+        notify_mock,
+        payment_mock,
+    ):
         cancel_appointment(self.appointment)
 
         self.appointment.refresh_from_db()
@@ -99,7 +76,7 @@ class CancelAppointmentTests(AppointmentServiceTestsBase):
         notify_mock.assert_not_called()
 
 
-class CompleteAppointmentTests(AppointmentServiceTestsBase):
+class CompleteAppointmentTests(BaseTestCase):
     @patch("appointments.services.PaymentService.create_payment_for_appointment")
     @patch("appointments.services.notify_admins")
     def test_complete_appointment_creates_payment_and_sets_completion_time(
@@ -146,7 +123,7 @@ class CompleteAppointmentTests(AppointmentServiceTestsBase):
         notify_mock.assert_not_called()
 
 
-class MarkNoShowTests(AppointmentServiceTestsBase):
+class MarkNoShowTests(BaseTestCase):
     @patch("appointments.services.PaymentService.create_payment_for_appointment")
     @patch("appointments.services.notify_admins")
     def test_mark_no_show_creates_fee_and_updates_status(
