@@ -51,6 +51,27 @@ class PaymentService:
         cents = (amount * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         return int(cents)
 
+
+    @classmethod
+    def _get_redirect_urls(cls, request: HttpRequest | None = None) -> tuple[str, str]:
+        if request is not None:
+            base_url = request.build_absolute_uri("/")[:-1]
+        else:
+            base_url = getattr(settings, "SITE_URL", "http://localhost:8000")
+            if base_url.endswith("/"):
+                base_url = base_url[:-1]
+
+        try:
+            success_path = reverse("payments:success")
+            cancel_path = reverse("payments:cancel")
+        except NoReverseMatch:
+            success_path = "/success/"
+            cancel_path = "/cancel/"
+
+        success_url = f"{base_url}{success_path}?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{base_url}{cancel_path}"
+        return success_url, cancel_url
+
     @classmethod
     def create_payment_for_appointment(
         cls,
@@ -67,25 +88,9 @@ class PaymentService:
         if existing_payment:
             return existing_payment
 
-        if request is not None:
-            base_url = request.build_absolute_uri("/")[:-1]
-        else:
-            base_url = getattr(settings, "SITE_URL", "http://localhost:8000")
-            if base_url.endswith("/"):
-                base_url = base_url[:-1]
-
         money_to_pay = cls.calculate_amount(appointment.price, payment_type)
         stripe_cents = cls.to_stripe_cents(money_to_pay)
-
-        try:
-            success_path = reverse("payments:success")
-            cancel_path = reverse("payments:cancel")
-        except NoReverseMatch:
-            success_path = "/payments/success/"
-            cancel_path = "/payments/cancel/"
-
-        success_url = f"{base_url}{success_path}?session_id={{CHECKOUT_SESSION_ID}}"
-        cancel_url = f"{base_url}{cancel_path}"
+        success_url, cancel_url = cls._get_redirect_urls(request)
 
         try:
             stripe_session = stripe.checkout.Session.create(
@@ -124,6 +129,47 @@ class PaymentService:
             )
 
         return payment
+
+    @classmethod
+    def renew(
+        cls,
+        payment: Payment,
+        request: HttpRequest | None = None,
+    ) -> Payment:
+        success_url, cancel_url = cls._get_redirect_urls(request)
+        stripe_cents = cls.to_stripe_cents(payment.money_to_pay)
+
+        stripe_session = stripe.checkout.Session.create(
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {
+                            "name": f"{payment.type} Payment",
+                        },
+                        "unit_amount": stripe_cents,
+                    },
+                    "quantity": 1,
+                }
+            ],
+            mode="payment",
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={
+                "appointment_id": payment.appointment.id,
+                "payment_type": payment.type,
+            },
+        )
+
+        with transaction.atomic():
+            payment.session_id = stripe_session.id
+            payment.session_url = stripe_session.url
+            payment.status = Payment.Status.PENDING
+            payment.save(update_fields=["session_id", "session_url", "status"])
+
+        return payment
+
+    renew_payment = renew
 
     @classmethod
     def expire_stale_sessions(cls) -> int:

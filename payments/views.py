@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from core import settings
 from payments.models import Payment
 from payments.serializers import PaymentSerializer
+from payments.services import PaymentService
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -68,32 +69,12 @@ class RenewPaymentView(APIView):
             return Response({"detail": "Only EXPIRED payments can be renewed"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                line_items=[
-                    {
-                        "price_data": {
-                            "currency": "usd",
-                            "product_data": {
-                                "name": f"{payment.type} Payment",
-                            },
-                            "unit_amount": int(payment.money_to_pay * 100),
-                        },
-                        "quantity": 1,
-                    }
-                ],
-                mode="payment",
-                success_url=f"{settings.SITE_URL}/payments/success/?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"{settings.SITE_URL}/payments/cancel/",
-            )
-
-            payment.session_id = session.id
-            payment.session_url = session.url
-            payment.status = Payment.Status.PENDING
-            payment.save()
-
+            renewed_payment = PaymentService.renew(payment, request=request)
             return Response(
-                {"session_id": session.id, "session_url": session.url},
+                {
+                    "session_id": renewed_payment.session_id,
+                    "session_url": renewed_payment.session_url,
+                },
                 status=status.HTTP_201_CREATED,
             )
         except stripe.error.StripeError as e:

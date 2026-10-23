@@ -105,9 +105,18 @@ class RenewPaymentViewTests(BaseTestCase):
         line_item = call_kwargs["line_items"][0]
         self.assertEqual(line_item["price_data"]["unit_amount"], 80000)
 
-        self.assertIn("/payments/success/", call_kwargs["success_url"])
+        success_path = reverse("payments:success")
+        cancel_path = reverse("payments:cancel")
+        self.assertIn(success_path, call_kwargs["success_url"])
         self.assertIn("?session_id={CHECKOUT_SESSION_ID}", call_kwargs["success_url"])
-        self.assertIn("/payments/cancel/", call_kwargs["cancel_url"])
+        self.assertIn(cancel_path, call_kwargs["cancel_url"])
+        self.assertEqual(
+            call_kwargs["metadata"],
+            {
+                "appointment_id": self.appointment.id,
+                "payment_type": Payment.Type.CONSULTATION,
+            },
+        )
 
     def test_renew_non_expired_returns_400(self):
         pending_payment = Payment.objects.create(
