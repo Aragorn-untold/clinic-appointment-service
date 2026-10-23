@@ -2,7 +2,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 import stripe
 from django.conf import settings
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.http import HttpRequest
 from django.urls import NoReverseMatch, reverse
 
@@ -113,21 +113,14 @@ class PaymentService:
         except stripe.error.StripeError as exc:
             raise RuntimeError(f"Stripe error: {exc.user_message or str(exc)}") from exc
 
-        try:
-            with transaction.atomic():
-                payment = Payment.objects.create(
-                    appointment=appointment,
-                    status=Payment.Status.PENDING,
-                    type=payment_type,
-                    session_id=stripe_session.id,
-                    session_url=stripe_session.url,
-                    money_to_pay=money_to_pay,
-                )
-        except IntegrityError:
-            return Payment.objects.get(
+        with transaction.atomic():
+            payment = Payment.objects.create(
                 appointment=appointment,
+                status=Payment.Status.PENDING,
                 type=payment_type,
-                status__in=[Payment.Status.PENDING, Payment.Status.PAID],
+                session_id=stripe_session.id,
+                session_url=stripe_session.url,
+                money_to_pay=money_to_pay,
             )
 
         return payment

@@ -38,6 +38,10 @@ class PaymentServiceCalculationTests(SimpleTestCase):
             PaymentService.calculate_amount("800.00", Payment.Type.CONSULTATION),
             Decimal("800.00"),
         )
+        self.assertEqual(
+            PaymentService.calculate_amount(800, Payment.Type.CONSULTATION),
+            Decimal("800.00"),
+        )
 
     def test_negative_price_raises_error(self):
         with self.assertRaises(ValueError):
@@ -65,6 +69,17 @@ class PaymentServiceStripeTests(BaseTestCase):
         self.assertEqual(payment.session_id, "sess_test_123")
         self.assertEqual(payment.money_to_pay, self.appointment.price)
         mock_stripe_create.assert_called_once()
+
+        call_kwargs = mock_stripe_create.call_args.kwargs
+        line_item = call_kwargs["line_items"][0]
+        self.assertEqual(line_item["price_data"]["unit_amount"], 80000)
+
+        from django.conf import settings
+
+        site_url = settings.SITE_URL.rstrip("/")
+        self.assertTrue(call_kwargs["success_url"].startswith(site_url))
+        self.assertIn("?session_id={CHECKOUT_SESSION_ID}", call_kwargs["success_url"])
+        self.assertTrue(call_kwargs["cancel_url"].startswith(site_url))
 
     @patch("stripe.checkout.Session.create")
     def test_returns_existing_payment_without_calling_stripe(self, mock_stripe_create):
