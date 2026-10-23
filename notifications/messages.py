@@ -1,6 +1,5 @@
 from django.utils import timezone
 
-
 TIME_FORMAT = "%d.%m.%Y %H:%M"
 
 
