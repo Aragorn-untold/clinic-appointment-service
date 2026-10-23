@@ -98,9 +98,9 @@ class DoctorViewSet(viewsets.ModelViewSet):
 
         try:
             parsed = parse_datetime(value)
-        except ValueError:  # правильний формат, неможлива дата
+        except ValueError:
             parsed = None
-        if parsed is None:  # «сміття»
+        if parsed is None:
             raise ValidationError({name: ["Invalid date"]})
 
         if timezone.is_naive(parsed):
@@ -117,9 +117,9 @@ class DoctorViewSet(viewsets.ModelViewSet):
                 location=OpenApiParameter.QUERY,
                 required=False,
                 description=(
-                        "Only slots starting at or after this moment (ISO 8601), "
-                        "e.g. `2026-10-30T09:00`. Without a time zone offset the "
-                        "project time zone is used."
+                    "Only slots starting at or after this moment (ISO 8601), "
+                    "e.g. `2026-10-30T09:00`. Without a time zone offset the "
+                    "project time zone is used."
                 ),
             ),
             OpenApiParameter(
@@ -128,9 +128,9 @@ class DoctorViewSet(viewsets.ModelViewSet):
                 location=OpenApiParameter.QUERY,
                 required=False,
                 description=(
-                        "Only slots ending at or before this moment (ISO 8601), "
-                        "e.g. `2026-10-30T13:00`. Without a time zone offset the "
-                        "project time zone is used."
+                    "Only slots ending at or before this moment (ISO 8601), "
+                    "e.g. `2026-10-30T13:00`. Without a time zone offset the "
+                    "project time zone is used."
                 ),
             ),
             OpenApiParameter(
@@ -139,8 +139,8 @@ class DoctorViewSet(viewsets.ModelViewSet):
                 location=OpenApiParameter.QUERY,
                 required=False,
                 description=(
-                        "`true` returns only slots without a BOOKED appointment. "
-                        "Any other value or no value returns all slots."
+                    "`true` returns only slots without a BOOKED appointment. "
+                    "Any other value or no value returns all slots."
                 ),
             ),
         ],
@@ -164,9 +164,7 @@ class DoctorViewSet(viewsets.ModelViewSet):
                 doctor_slot=OuterRef("pk"),
                 status=Appointment.Status.BOOKED,
             )
-            doctor_slots = doctor_slots.annotate(is_booked=Exists(booked)).filter(
-                is_booked=False
-            )
+            doctor_slots = doctor_slots.annotate(is_booked=Exists(booked)).filter(is_booked=False)
 
         return Response(
             DoctorSlotSerializer(doctor_slots, many=True).data,
