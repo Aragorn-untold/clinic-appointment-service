@@ -49,8 +49,14 @@ class PaymentCancelView(APIView):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def renew_payment(request, pk):
-
     payment = get_object_or_404(Payment, pk=pk)
+
+    appointment_owner = getattr(payment.appointment, "patient", getattr(payment.appointment, "user", None))
+    if appointment_owner != request.user:
+        return Response(
+            {"detail": "You do not have permission to renew this payment."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     if payment.status != Payment.Status.EXPIRED:
         return Response(
