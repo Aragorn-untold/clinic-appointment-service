@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -110,3 +111,73 @@ class AppointmentAPITests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+    @patch("appointments.serializers.notify_admins")
+    def test_patient_can_create_appointment(self, notify_mock):
+        self.client.force_authenticate(user=self.patient)
+
+        start = timezone.now() + timedelta(days=3)
+        slot = DoctorSlot.objects.create(
+            doctor=self.doctor,
+            start=start,
+            end=start + timedelta(minutes=30),
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                self.list_url,
+                {"doctor_slot": slot.id},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["patient"], self.patient.id)
+        self.assertEqual(
+            Decimal(response.data["price"]),
+            self.doctor.price_per_visit,
+        )
+        self.assertTrue(
+            Appointment.objects.filter(
+                doctor_slot=slot,
+                patient=self.patient,
+                status=Appointment.Status.BOOKED,
+            ).exists()
+        )
+        notify_mock.assert_called_once_with(f"Appointment #{response.data['id']} booked")
+
+    def test_cannot_book_an_already_booked_slot(self):
+        self.client.force_authenticate(user=self.other_patient)
+
+        response = self.client.post(
+            self.list_url,
+            {"doctor_slot": self.slot.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            Appointment.objects.filter(
+                doctor_slot=self.slot,
+                status=Appointment.Status.BOOKED,
+            ).count(),
+            1,
+        )
+
+    def test_cannot_book_a_past_slot(self):
+        self.client.force_authenticate(user=self.patient)
+
+        start = timezone.now() - timedelta(days=1)
+        slot = DoctorSlot.objects.create(
+            doctor=self.doctor,
+            start=start,
+            end=start + timedelta(minutes=30),
+        )
+
+        response = self.client.post(
+            self.list_url,
+            {"doctor_slot": slot.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Appointment.objects.filter(doctor_slot=slot).exists())

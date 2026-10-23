@@ -1,16 +1,18 @@
 from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.viewsets import ReadOnlyModelViewSet
+from rest_framework.viewsets import ModelViewSet
 
 from appointments.models import Appointment
 from appointments.serializers import (
+    AppointmentCreateSerializer,
     AppointmentDetailSerializer,
     AppointmentListSerializer,
 )
 
 
-class AppointmentViewSet(ReadOnlyModelViewSet):
+class AppointmentViewSet(ModelViewSet):
+    http_method_names = ["get", "post", "head", "options"]
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -43,9 +45,9 @@ class AppointmentViewSet(ReadOnlyModelViewSet):
                 raise ValidationError({"status": "Invalid appointment status."})
             queryset = queryset.filter(status=status)
 
-        for param, lookup in (
-            ("from", "gte"),
-            ("to", "lte"),
+        for param, lookup, _comparison in (
+            ("from", "gte", "date"),
+            ("to", "lte", "date"),
         ):
             value = params.get(param)
             if not value:
@@ -65,6 +67,9 @@ class AppointmentViewSet(ReadOnlyModelViewSet):
         return queryset
 
     def get_serializer_class(self):
+        if self.action == "create":
+            return AppointmentCreateSerializer
+
         if self.action == "retrieve":
             return AppointmentDetailSerializer
 
