@@ -1,15 +1,15 @@
 import stripe
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core import settings
 from payments.models import Payment
 from payments.serializers import PaymentSerializer
-from payments.services import PaymentService
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
@@ -22,62 +22,77 @@ class PaymentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         return Payment.objects.filter(appointment__patient=user)
 
-    @extend_schema(responses={201: PaymentSerializer})
-    @action(detail=True, methods=["post"], url_path="renew")
-    def renew(self, request, pk=None):
-        payment = self.get_object()
 
-        if payment.status != Payment.Status.EXPIRED:
-            return Response(
-                {"detail": "Only EXPIRED payments can be renewed."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        new_payment = PaymentService.create_payment_for_appointment(
-            appointment=payment.appointment,
-            payment_type=payment.type,
-            request=request,
-        )
-        return Response(
-            PaymentSerializer(new_payment).data,
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class PaymentSuccessView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]
-
-    @extend_schema(responses={200: PaymentSerializer})
+class StripeSuccessView(APIView):
     def get(self, request):
-        session_id = request.query_params.get("session_id")
+        session_id = request.GET.get("session_id")
         if not session_id:
-            return Response(
-                {"detail": "session_id query parameter is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"error": "Session ID required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        payment = get_object_or_404(Payment, session_id=session_id)
+        payment = Payment.objects.filter(session_id=session_id).first()
+        if not payment:
+            return Response({"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND)
 
         try:
             session = stripe.checkout.Session.retrieve(session_id)
-        except stripe.error.StripeError as exc:
-            return Response(
-                {"detail": f"Stripe error: {exc.user_message or str(exc)}"},
-                status=status.HTTP_502_BAD_GATEWAY,
+            payment_status = (
+                session.get("payment_status") if isinstance(session, dict) else getattr(session, "payment_status", None)
             )
 
-        if session.payment_status == "paid" and payment.status != Payment.Status.PAID:
-            payment.status = Payment.Status.PAID
-            payment.save(update_fields=["status"])
+            if payment_status == "paid":
+                payment.status = Payment.Status.PAID
+                payment.save()
+                return Response({"status": Payment.Status.PAID}, status=status.HTTP_200_OK)
+            return Response({"status": Payment.Status.PENDING}, status=status.HTTP_200_OK)
+        except stripe.error.StripeError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(PaymentSerializer(payment).data)
 
-
-class PaymentCancelView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]
-
-    @extend_schema(responses={200: dict})
+class StripeCancelView(APIView):
     def get(self, request):
-        return Response({"detail": "Payment cancelled. The session remains valid for 24 hours."})
+        return Response({"message": "The payment was cancelled."}, status=status.HTTP_200_OK)
+
+
+class RenewPaymentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        payment = get_object_or_404(Payment, pk=pk)
+
+        if payment.appointment.patient != request.user:
+            return Response({"detail": "Payment not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if payment.status != Payment.Status.EXPIRED:
+            return Response({"detail": "Only EXPIRED payments can be renewed"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[
+                    {
+                        "price_data": {
+                            "currency": "usd",
+                            "product_data": {
+                                "name": f"{payment.type} Payment",
+                            },
+                            "unit_amount": int(payment.money_to_pay * 100),
+                        },
+                        "quantity": 1,
+                    }
+                ],
+                mode="payment",
+                success_url=f"{settings.SITE_URL}/payments/success/?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{settings.SITE_URL}/payments/cancel/",
+            )
+
+            payment.session_id = session.id
+            payment.session_url = session.url
+            payment.status = Payment.Status.PENDING
+            payment.save()
+
+            return Response(
+                {"session_id": session.id, "session_url": session.url},
+                status=status.HTTP_201_CREATED,
+            )
+        except stripe.error.StripeError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

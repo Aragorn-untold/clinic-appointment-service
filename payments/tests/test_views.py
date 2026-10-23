@@ -71,7 +71,7 @@ class PaymentCancelViewTests(BaseTestCase):
     def test_returns_200_with_message(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("24 hours", response.data["detail"])
+        self.assertIn("cancelled", response.data["message"].lower())
 
 
 class RenewPaymentViewTests(BaseTestCase):
@@ -104,9 +104,9 @@ class RenewPaymentViewTests(BaseTestCase):
         line_item = call_kwargs["line_items"][0]
         self.assertEqual(line_item["price_data"]["unit_amount"], 80000)
 
-        self.assertIn("payments/success/", call_kwargs["success_url"])
+        self.assertIn("/payments/success/", call_kwargs["success_url"])
         self.assertIn("?session_id={CHECKOUT_SESSION_ID}", call_kwargs["success_url"])
-        self.assertIn("payments/cancel/", call_kwargs["cancel_url"])
+        self.assertIn("/payments/cancel/", call_kwargs["cancel_url"])
 
     def test_renew_non_expired_returns_400(self):
         pending_payment = Payment.objects.create(
