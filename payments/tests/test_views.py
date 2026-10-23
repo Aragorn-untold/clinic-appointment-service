@@ -1,9 +1,12 @@
 from unittest.mock import MagicMock, patch
 
+from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from core.tests.base import BaseTestCase
 from payments.models import Payment
+
+User = get_user_model()
 
 
 class PaymentSuccessViewTests(BaseTestCase):
@@ -50,7 +53,6 @@ class PaymentSuccessViewTests(BaseTestCase):
 
     @patch("stripe.checkout.Session.retrieve")
     def test_does_not_downgrade_already_paid(self, mock_retrieve):
-        """PAID payment must not change if Stripe somehow returns unpaid."""
         self.payment.status = Payment.Status.PAID
         self.payment.save()
         mock_retrieve.return_value = MagicMock(payment_status="unpaid")
@@ -83,7 +85,7 @@ class RenewPaymentViewTests(BaseTestCase):
             session_url="https://checkout.stripe.com/old",
             money_to_pay=self.appointment.price,
         )
-        self.url = reverse("payments:renew", kwargs={"pk": self.expired_payment.pk})
+        self.url = reverse("payments:payment-renew", kwargs={"pk": self.expired_payment.pk})
 
     @patch("stripe.checkout.Session.create")
     def test_renew_expired_returns_201_with_new_session(self, mock_create):
@@ -115,7 +117,7 @@ class RenewPaymentViewTests(BaseTestCase):
             session_url="https://checkout.stripe.com/pending",
             money_to_pay=self.appointment.price,
         )
-        url = reverse("payments:renew", kwargs={"pk": pending_payment.pk})
+        url = reverse("payments:payment-renew", kwargs={"pk": pending_payment.pk})
 
         response = self.auth_client.post(url)
 
@@ -127,6 +129,15 @@ class RenewPaymentViewTests(BaseTestCase):
         self.assertEqual(response.status_code, 401)
 
     def test_renew_returns_404_for_unknown_payment(self):
-        url = reverse("payments:renew", kwargs={"pk": 99999})
+        url = reverse("payments:payment-renew", kwargs={"pk": 99999})
         response = self.auth_client.post(url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_renew_other_user_payment_returns_404(self):
+        other_user = User.objects.create_user(
+            email="other@example.com",
+            password="password123",
+        )
+        self.client.force_authenticate(user=other_user)
+        response = self.client.post(self.url)
         self.assertEqual(response.status_code, 404)

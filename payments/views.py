@@ -2,7 +2,7 @@ import stripe
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -21,6 +21,27 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Payment.objects.none()
         user = self.request.user
         return Payment.objects.filter(appointment__patient=user)
+
+    @extend_schema(responses={201: PaymentSerializer})
+    @action(detail=True, methods=["post"], url_path="renew")
+    def renew(self, request, pk=None):
+        payment = self.get_object()
+
+        if payment.status != Payment.Status.EXPIRED:
+            return Response(
+                {"detail": "Only EXPIRED payments can be renewed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_payment = PaymentService.create_payment_for_appointment(
+            appointment=payment.appointment,
+            payment_type=payment.type,
+            request=request,
+        )
+        return Response(
+            PaymentSerializer(new_payment).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class PaymentSuccessView(APIView):
@@ -60,30 +81,3 @@ class PaymentCancelView(APIView):
     @extend_schema(responses={200: dict})
     def get(self, request):
         return Response({"detail": "Payment cancelled. The session remains valid for 24 hours."})
-
-
-@extend_schema(responses={201: PaymentSerializer})
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def renew_payment(request, pk):
-    payment = get_object_or_404(Payment, pk=pk)
-
-    appointment_owner = getattr(payment.appointment, "patient", getattr(payment.appointment, "user", None))
-    if appointment_owner != request.user:
-        return Response(
-            {"detail": "You do not have permission to renew this payment."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    if payment.status != Payment.Status.EXPIRED:
-        return Response(
-            {"detail": "Only EXPIRED payments can be renewed."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    new_payment = PaymentService.create_payment_for_appointment(
-        appointment=payment.appointment,
-        payment_type=payment.type,
-        request=request,
-    )
-    return Response(PaymentSerializer(new_payment).data, status=status.HTTP_201_CREATED)
