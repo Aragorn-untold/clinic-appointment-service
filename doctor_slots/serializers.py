@@ -31,14 +31,10 @@ class BulkSlotCreateSerializer(serializers.Serializer):
 
     def validate_date(self, value):
         if value < timezone.localdate():
-            raise serializers.ValidationError(
-                "Cannot create slots for a past date."
-            )
+            raise serializers.ValidationError("Cannot create slots for a past date.")
         return value
 
     def validate(self, attrs):
         if attrs["start_time"] >= attrs["end_time"]:
-            raise serializers.ValidationError(
-                "end_time must be later than start_time."
-            )
+            raise serializers.ValidationError("end_time must be later than start_time.")
         return attrs

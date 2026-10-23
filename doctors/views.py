@@ -1,11 +1,9 @@
-from django.contrib.gis import serializers
 from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import viewsets, status
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
 from core.permissions import IsAdminOrReadOnly
@@ -37,8 +35,8 @@ class DoctorViewSet(viewsets.ModelViewSet):
         request=BulkSlotCreateSerializer,
         responses={201: DoctorSlotSerializer(many=True)},
         description=(
-                "Bulk-create slots for the doctor. Slots overlapping existing "
-                "ones are skipped. Returns only the created slots."
+            "Bulk-create slots for the doctor. Slots overlapping existing "
+            "ones are skipped. Returns only the created slots."
         ),
     )
     @action(
@@ -63,20 +61,25 @@ class DoctorViewSet(viewsets.ModelViewSet):
             )
         ]
 
-        day_start, day_end = candidates[0][0], candidates[-1][1]
-        existing = list(
-            DoctorSlot.objects.filter(
-                doctor=doctor, start__lt=day_end, end__gt=day_start
-            ).values_list("start", "end")
-        )
+        if not candidates:
+            return Response([], status=status.HTTP_201_CREATED)
 
-        new_slots = [
-            DoctorSlot(doctor=doctor, start=start, end=end)
-            for start, end in candidates
-            if not any(start < ex_end and end > ex_start for ex_start, ex_end in existing)
-        ]
+        day_start, day_end = candidates[0][0], candidates[-1][1]
 
         with transaction.atomic():
+            # Lock the doctor row so concurrent requests can't create overlapping slots
+            Doctor.objects.select_for_update().get(pk=doctor.pk)
+            existing = list(
+                DoctorSlot.objects.filter(doctor=doctor, start__lt=day_end, end__gt=day_start).values_list(
+                    "start", "end"
+                )
+            )
+
+            new_slots = [
+                DoctorSlot(doctor=doctor, start=start, end=end)
+                for start, end in candidates
+                if not any(start < ex_end and end > ex_start for ex_start, ex_end in existing)
+            ]
             created = DoctorSlot.objects.bulk_create(new_slots)
 
         return Response(

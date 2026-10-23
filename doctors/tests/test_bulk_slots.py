@@ -21,9 +21,7 @@ class BulkSlotCreateTests(BaseTestCase):
         cls.workday = timezone.localdate() + timedelta(days=7)
 
     def aware(self, hour, minute=0):
-        return timezone.make_aware(
-            datetime.combine(self.workday, time(hour, minute))
-        )
+        return timezone.make_aware(datetime.combine(self.workday, time(hour, minute)))
 
     def payload(self, **overrides):
         data = {
@@ -36,16 +34,12 @@ class BulkSlotCreateTests(BaseTestCase):
         return data
 
     def doctor_slots_on_workday(self):
-        return DoctorSlot.objects.filter(
-            doctor=self.doctor, start__date=self.workday
-        )
+        return DoctorSlot.objects.filter(doctor=self.doctor, start__date=self.workday)
 
     # --- happy path ---
 
     def test_admin_creates_slots_for_whole_day(self):
-        res = self.admin_client.post(
-            bulk_slots_url(self.doctor.id), self.payload(), format="json"
-        )
+        res = self.admin_client.post(bulk_slots_url(self.doctor.id), self.payload(), format="json")
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(res.data), 16)
@@ -73,13 +67,9 @@ class BulkSlotCreateTests(BaseTestCase):
     # --- overlaps ---
 
     def test_slot_matching_existing_one_is_skipped(self):
-        DoctorSlot.objects.create(
-            doctor=self.doctor, start=self.aware(10, 0), end=self.aware(10, 30)
-        )
+        DoctorSlot.objects.create(doctor=self.doctor, start=self.aware(10, 0), end=self.aware(10, 30))
 
-        res = self.admin_client.post(
-            bulk_slots_url(self.doctor.id), self.payload(), format="json"
-        )
+        res = self.admin_client.post(bulk_slots_url(self.doctor.id), self.payload(), format="json")
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(res.data), 15)
@@ -90,31 +80,21 @@ class BulkSlotCreateTests(BaseTestCase):
 
     def test_partially_overlapping_slots_are_skipped(self):
         # 10:15-10:45 overlaps both 10:00-10:30 and 10:30-11:00
-        DoctorSlot.objects.create(
-            doctor=self.doctor, start=self.aware(10, 15), end=self.aware(10, 45)
-        )
+        DoctorSlot.objects.create(doctor=self.doctor, start=self.aware(10, 15), end=self.aware(10, 45))
 
-        res = self.admin_client.post(
-            bulk_slots_url(self.doctor.id), self.payload(), format="json"
-        )
+        res = self.admin_client.post(bulk_slots_url(self.doctor.id), self.payload(), format="json")
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        created_starts = {
-            DoctorSlot.objects.get(pk=item["id"]).start for item in res.data
-        }
+        created_starts = {DoctorSlot.objects.get(pk=item["id"]).start for item in res.data}
         self.assertEqual(len(created_starts), 14)
         self.assertNotIn(self.aware(10, 0), created_starts)
         self.assertNotIn(self.aware(10, 30), created_starts)
 
     def test_adjacent_existing_slot_does_not_block(self):
         # Ends exactly when the generated day starts: touching is not overlapping
-        DoctorSlot.objects.create(
-            doctor=self.doctor, start=self.aware(8, 30), end=self.aware(9, 0)
-        )
+        DoctorSlot.objects.create(doctor=self.doctor, start=self.aware(8, 30), end=self.aware(9, 0))
 
-        res = self.admin_client.post(
-            bulk_slots_url(self.doctor.id), self.payload(), format="json"
-        )
+        res = self.admin_client.post(bulk_slots_url(self.doctor.id), self.payload(), format="json")
 
         self.assertEqual(len(res.data), 16)
 
@@ -178,23 +158,17 @@ class BulkSlotCreateTests(BaseTestCase):
     # --- permissions / lookup ---
 
     def test_anonymous_cannot_create_slots(self):
-        res = self.client.post(
-            bulk_slots_url(self.doctor.id), self.payload(), format="json"
-        )
+        res = self.client.post(bulk_slots_url(self.doctor.id), self.payload(), format="json")
 
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_patient_cannot_create_slots(self):
-        res = self.auth_client.post(
-            bulk_slots_url(self.doctor.id), self.payload(), format="json"
-        )
+        res = self.auth_client.post(bulk_slots_url(self.doctor.id), self.payload(), format="json")
 
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(self.doctor_slots_on_workday().exists())
 
     def test_unknown_doctor_returns_404(self):
-        res = self.admin_client.post(
-            bulk_slots_url(999999), self.payload(), format="json"
-        )
+        res = self.admin_client.post(bulk_slots_url(999999), self.payload(), format="json")
 
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
