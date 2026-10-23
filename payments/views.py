@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import stripe
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -71,23 +70,3 @@ def renew_payment(request, pk):
         request=request,
     )
     return Response(PaymentSerializer(new_payment).data, status=status.HTTP_201_CREATED)
-=======
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-
-from payments.models import Payment
-from payments.serializers import PaymentSerializer
-
-
-class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = PaymentSerializer
-    permission_classes = (IsAuthenticated,)
-
-    def get_queryset(self):
-        user = self.request.user
-
-        if user.is_staff:
-            return Payment.objects.all()
-
-        return Payment.objects.filter(appointment__patient=user)
->>>>>>> dd05545c72bcc2a1586771fd3d8cf105d89e0661
