@@ -1,5 +1,4 @@
-from django.contrib.auth import get_user_model
-from django.utils.translation import gettext as _
+from django.contrib.auth import get_user_model, password_validation
 from rest_framework import serializers
 
 
@@ -28,11 +27,12 @@ class UserCreateSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "password": {
                 "write_only": True,
-                "min_length": 5,
-                "style": {"input_type": "password"},
-                "label": _("Password"),
             }
         }
+
+    def validate_password(self, value):
+        password_validation.validate_password(value)
+        return value
 
     def create(self, validated_data):
         return get_user_model().objects.create_user(**validated_data)
