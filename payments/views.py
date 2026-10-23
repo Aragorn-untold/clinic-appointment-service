@@ -1,8 +1,9 @@
 import stripe
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -16,13 +17,17 @@ class PaymentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Payment.objects.none()
         user = self.request.user
         return Payment.objects.filter(appointment__patient=user)
 
 
 class PaymentSuccessView(APIView):
-    permission_classes = []
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
+    @extend_schema(responses={200: PaymentSerializer})
     def get(self, request):
         session_id = request.query_params.get("session_id")
         if not session_id:
@@ -49,12 +54,15 @@ class PaymentSuccessView(APIView):
 
 
 class PaymentCancelView(APIView):
-    permission_classes = []
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
+    @extend_schema(responses={200: dict})
     def get(self, request):
         return Response({"detail": "Payment cancelled. The session remains valid for 24 hours."})
 
 
+@extend_schema(responses={201: PaymentSerializer})
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def renew_payment(request, pk):
