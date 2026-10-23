@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.urls import reverse
 from rest_framework import status
@@ -37,3 +38,36 @@ class PaymentTests(BaseTestCase):
     def test_unauthorized(self):
         res = self.client.get(PAYMENTS_LIST_URL)
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class StripePaymentFlowTests(BaseTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.payment = Payment.objects.create(
+            appointment=cls.appointment,
+            status="PENDING",
+            type="CONSULTATION",
+            session_url="https://checkout.stripe.com/test",
+            session_id="cs_test_mock_123",
+            money_to_pay=Decimal("800.00"),
+        )
+
+    @patch("stripe.checkout.Session.retrieve")
+    def test_stripe_success_view(self, mock_stripe_retrieve):
+        mock_stripe_retrieve.return_value = {"payment_status": "paid", "id": "cs_test_mock_123"}
+
+        url = reverse("payments:success") + f"?session_id={self.payment.session_id}"
+        response = self.auth_client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, "PAID")
+
+    def test_stripe_cancel_view(self):
+        url = reverse("payments:cancel")
+        response = self.auth_client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("cancelled", response.data["message"].lower())
