@@ -13,8 +13,15 @@ from doctor_slots.models import DoctorSlot
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
 @patch("notifications.tasks.send_telegram_message")
 class MarkNoShowsTaskTests(BaseTestCase):
-    def _make_past_appointment(self, **kwargs):
-        end = timezone.now() - timedelta(hours=1)
+    def setUp(self):
+        super().setUp()
+        # real mark_no_show creates a NO_SHOW_FEE payment via Stripe: never call it in tests
+        patcher = patch("payments.services.PaymentService.create_payment_for_appointment")
+        self.mock_payment = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _make_past_appointment(self, hours_ago=1, **kwargs):
+        end = timezone.now() - timedelta(hours=hours_ago)
         slot = DoctorSlot.objects.create(
             doctor=self.doctor,
             start=end - timedelta(minutes=30),
@@ -35,6 +42,7 @@ class MarkNoShowsTaskTests(BaseTestCase):
         past.refresh_from_db()
         self.assertEqual(past.status, Appointment.Status.NO_SHOW)
         self.assertEqual(result, 1)
+        self.mock_payment.assert_called_once()
         mock_send.assert_called_once()
 
     def test_future_appointment_untouched(self, mock_send):
@@ -56,3 +64,14 @@ class MarkNoShowsTaskTests(BaseTestCase):
 
         self.assertEqual(result, 0)
         mock_send.assert_called_once_with("No missed appointments today!")
+
+    @patch("appointments.tasks.mark_no_show", side_effect=[RuntimeError("stripe"), None])
+    def test_continues_after_error(self, mock_mark, mock_send):
+        self._make_past_appointment(hours_ago=1)
+        self._make_past_appointment(hours_ago=3)
+
+        with self.assertLogs("appointments.tasks", level="ERROR"):
+            result = mark_no_shows()
+
+        self.assertEqual(mock_mark.call_count, 2)
+        self.assertEqual(result, 1)
