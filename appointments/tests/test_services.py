@@ -96,9 +96,7 @@ class CancelAppointmentTests(BaseTestCase):
         payment_mock,
         now_mock,
     ):
-        now_mock.return_value = (
-            self.slot.start - timedelta(hours=24) + timedelta(seconds=1)
-        )
+        now_mock.return_value = self.slot.start - timedelta(hours=24) + timedelta(seconds=1)
 
         cancel_appointment(self.appointment)
 

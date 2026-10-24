@@ -83,15 +83,11 @@ class AppointmentAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("doctor_slot", response.data)
         self.assertEqual(
-            datetime.fromisoformat(
-                response.data["doctor_slot"]["start"].replace("Z", "+00:00")
-            ),
+            datetime.fromisoformat(response.data["doctor_slot"]["start"].replace("Z", "+00:00")),
             self.slot.start,
         )
         self.assertEqual(
-            datetime.fromisoformat(
-                response.data["doctor_slot"]["end"].replace("Z", "+00:00")
-            ),
+            datetime.fromisoformat(response.data["doctor_slot"]["end"].replace("Z", "+00:00")),
             self.slot.end,
         )
         self.assertEqual(
