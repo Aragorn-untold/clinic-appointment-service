@@ -87,6 +87,33 @@ class CancelAppointmentTests(BaseTestCase):
         )
         notify_mock.assert_called_once()
 
+    @patch("appointments.services.timezone.now")
+    @patch("appointments.services.PaymentService.create_payment_for_appointment")
+    @patch("appointments.services.notify_admins")
+    def test_cancel_24_hours_minus_one_second_before_creates_fee(
+        self,
+        notify_mock,
+        payment_mock,
+        now_mock,
+    ):
+        now_mock.return_value = (
+            self.slot.start - timedelta(hours=24) + timedelta(seconds=1)
+        )
+
+        cancel_appointment(self.appointment)
+
+        payment_mock.assert_called_once_with(
+            self.appointment,
+            Payment.Type.CANCELLATION_FEE,
+            None,
+        )
+        self.appointment.refresh_from_db()
+        self.assertEqual(
+            self.appointment.status,
+            Appointment.Status.CANCELLED,
+        )
+        notify_mock.assert_called_once()
+
     @patch("appointments.services.notify_admins")
     def test_cannot_cancel_already_cancelled_appointment(self, notify_mock):
         self.appointment.status = Appointment.Status.CANCELLED
