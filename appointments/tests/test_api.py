@@ -80,6 +80,12 @@ class AppointmentAPITests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("doctor_slot", response.data)
+        for field in ("start", "end"):
+            value = response.data["doctor_slot"][field]
+            self.assertTrue(
+                value.endswith("Z") or "+" in value,
+                msg=f"{field} must include a timezone offset",
+            )
         self.assertEqual(
             response.data["doctor_slot"]["doctor"]["first_name"],
             "Olena",
