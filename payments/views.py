@@ -96,9 +96,7 @@ class StripeSuccessView(APIView):
 @extend_schema(
     tags=["Payments"],
     summary="Stripe payment cancel callback",
-    description=(
-        "Called by Stripe when the user cancels the payment. Returns a cancellation message."
-    ),
+    description="Called by Stripe when the user cancels the payment. Returns a cancellation message.",
     responses={
         200: OpenApiResponse(description="Payment was cancelled."),
     },
