@@ -7,6 +7,7 @@ from doctor_slots.models import DoctorSlot
 from doctor_slots.serializers import DoctorSlotDetailSerializer
 from notifications.messages import appointment_booked
 from notifications.services import notify_admins
+from payments.models import Payment
 
 
 class AppointmentListSerializer(serializers.ModelSerializer):
@@ -73,6 +74,19 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This slot is already booked.")
 
         return doctor_slot
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        user_patient = self.context["request"].user
+        unpaid_problem_here = Payment.objects.filter(
+            appointment__patient=user_patient,
+            status__in=[Payment.Status.PENDING, Payment.Status.EXPIRED],
+        ).exists()
+        if unpaid_problem_here:
+            raise serializers.ValidationError(
+                "You have an unpaid payment and it might become a problem for you. Please pay it or else."
+            )
+        return attrs
 
     def create(self, validated_data):
         with transaction.atomic():

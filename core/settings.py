@@ -45,6 +45,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "appointments.tasks.mark_no_shows",
         "schedule": crontab(hour=0, minute=5),
     },
+    "expire-stale-payment-sessions": {
+        "task": "payments.tasks.expire_stale_payment_sessions",
+        "schedule": 30 * 60,
+    },
 }
 
 # Telegram
