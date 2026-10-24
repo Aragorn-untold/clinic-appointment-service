@@ -14,6 +14,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -40,6 +41,10 @@ CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CELERY_TIMEZONE = "Europe/Kyiv"
 CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_BEAT_SCHEDULE = {
+    "mark-no-shows-daily": {
+        "task": "appointments.tasks.mark_no_shows",
+        "schedule": crontab(hour=0, minute=5),
+    },
     "expire-stale-payment-sessions": {
         "task": "payments.tasks.expire_stale_payment_sessions",
         "schedule": 30 * 60,
