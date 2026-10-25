@@ -6,13 +6,18 @@ from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
+    """Telegram bot that replies to /start with the chat_id.
+
+    Use it once to find the value for TELEGRAM_CHAT_ID. Runs as the `bot`
+    service in docker-compose, which is off by default:
+
+        docker compose --profile bot up bot
+
+    Telegram allows only one process to poll a bot token at a time. If the
+    bot already runs somewhere else, this one logs "409 Conflict" and retries.
     """
-    For task 6.3 only, do not use this bcz the bot already listens to chat.
-    This command is here to satisfy 12.a requirement from:
-    https://docs.google.com/document/d/1vBLGUwsyM212ReQofTeCEjgNIj4H9myX/edit
-    DO NOT USE IT
-    won't work anyway
-    """
+
+    help = "Run the Telegram bot that replies to /start with the chat_id."
 
     def handle(self, *args, **options):
         if not settings.TELEGRAM_BOT_TOKEN:

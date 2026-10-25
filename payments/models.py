@@ -26,7 +26,8 @@ class Payment(models.Model):
         max_length=20,
         choices=Type.choices,
     )
-    session_url = models.URLField()
+    # Stripe Checkout URLs are often longer than the default 200 characters
+    session_url = models.URLField(max_length=2048)
     session_id = models.CharField(max_length=255, unique=True)
     money_to_pay = models.DecimalField(
         max_digits=10,

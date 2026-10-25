@@ -52,7 +52,7 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     tags=["Payments"],
     summary="Stripe payment success callback",
     description=(
-        "Called by Stripe after successful payment. Verifies payment status with Stripe "
+        "Stripe redirects the user here after a successful payment. Verifies payment status with Stripe "
         "and updates the payment status to PAID if confirmed. Requires session_id query parameter."
     ),
     parameters=[
@@ -100,7 +100,7 @@ class StripeSuccessView(APIView):
 @extend_schema(
     tags=["Payments"],
     summary="Stripe payment cancel callback",
-    description="Called by Stripe when the user cancels the payment. Returns a cancellation message.",
+    description="Stripe redirects the user here after they cancel the payment. Returns a cancellation message.",
     responses={
         200: OpenApiResponse(description="Payment was cancelled."),
     },
@@ -117,6 +117,7 @@ class StripeCancelView(APIView):
         "Creates a new Stripe checkout session for an expired payment. "
         "Only the payment owner can renew their own expired payments."
     ),
+    request=None,
     responses={
         201: OpenApiResponse(
             description="New payment session created successfully.",

@@ -46,6 +46,43 @@ python manage.py createsuperuser   # login is by email
 python manage.py runserver
 ```
 
+## Running in Docker
+
+Runs the whole stack: PostgreSQL, Redis, the web app, a Celery worker and Celery beat.
+
+```bash
+cp .env.sample .env                # then edit .env (see below)
+docker compose up --build          # add -d to run in the background
+```
+
+Migrations are applied when `web` starts. Then, in a second terminal:
+
+```bash
+docker compose exec web python manage.py createsuperuser
+docker compose exec web python manage.py loaddata fixtures/initial_data.json   # optional demo data
+```
+
+- Swagger UI: http://localhost:8000/api/schema/swagger/
+- Django admin: http://localhost:8000/admin/
+
+Keep `localhost` in `.env`: `docker-compose.yml` points the containers at the `db` and `redis` services itself, so the same `.env` works with and without Docker.
+
+| Service | What |
+|---|---|
+| `db`, `redis` | PostgreSQL and Redis. Ports 5432 and 6379 are also open on your machine, so `python manage.py runserver` outside Docker can use them. |
+| `web` | Django dev server on port 8000. The project folder is mounted, so code changes reload automatically. |
+| `celery_worker` | Runs background tasks (Telegram messages). |
+| `celery_beat` | Schedules the NO_SHOW check (daily at 00:05, Kyiv time) and the Stripe payment check (every 30 minutes). |
+| `bot` | Telegram bot that replies to `/start` with your `chat_id`. Off by default, start it with `docker compose --profile bot up bot`. |
+
+Useful commands:
+
+```bash
+docker compose ps                  # what is running
+docker compose logs -f celery_beat # follow one service's logs
+docker compose down                # stop everything (data stays in volumes)
+```
+
 ## Environment variables
 
 Settings load `.env` from the project root via `python-dotenv`. `.env.sample` lists every variable with comments.
@@ -60,6 +97,7 @@ Settings load `.env` from the project root via `python-dotenv`. `.env.sample` li
 | `POSTGRES_USER`, `POSTGRES_PASSWORD` | if `POSTGRES_DB` is set | |
 | `POSTGRES_HOST`, `POSTGRES_PORT` | no | Default `localhost` / `5432`. |
 | `REDIS_URL` | no | Celery broker. Default `redis://localhost:6379/0`. |
+| `CACHE_REDIS_URL` | no | Cache for the doctors and specializations lists. Default `redis://localhost:6379/1`. |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | not yet | Admin notifications (Telegram sending is not implemented yet). |
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` | not yet | Use Stripe **test** keys. |
 | `STRIPE_WEBHOOK_SECRET` | not yet | Read by settings; needed once Stripe webhooks are implemented. |
@@ -194,7 +232,13 @@ All of them must pass.
 
 ## Auth
 
-- DRF uses JWT only (`rest_framework_simplejwt`). Send `Authorization: Bearer <access token>`.
+- DRF uses JWT only (`rest_framework_simplejwt`). Get a token pair from `POST /api/token/` (email + password).
+- Send the access token in the **`Authorize`** header (not `Authorization`), with the `Bearer` prefix:
+  ```
+  Authorize: Bearer <access token>
+  ```
+  The header name is set by `SIMPLE_JWT["AUTH_HEADER_NAME"] = "HTTP_AUTHORIZE"` in `core/settings.py`.
+- In Swagger UI, click **Authorize** and enter `Bearer <access token>`, including the word `Bearer` and a space. Swagger does not add the prefix for you.
 - Token lifetimes are set in `SIMPLE_JWT` in `core/settings.py`.
 
 ## Logging
