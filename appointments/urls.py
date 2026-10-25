@@ -20,4 +20,19 @@ urlpatterns = [
         AppointmentViewSet.as_view({"get": "retrieve"}),
         name="appointment-detail",
     ),
+    path(
+        "<int:pk>/cancel/",
+        AppointmentViewSet.as_view({"post": "cancel"}),
+        name="appointment-cancel",
+    ),
+    path(
+        "<int:pk>/complete/",
+        AppointmentViewSet.as_view({"post": "complete"}),
+        name="appointment-complete",
+    ),
+    path(
+        "<int:pk>/no-show/",
+        AppointmentViewSet.as_view({"post": "no_show"}),
+        name="appointment-no-show",
+    ),
 ]

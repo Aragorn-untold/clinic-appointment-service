@@ -6,6 +6,8 @@ from django.db import transaction
 from django.http import HttpRequest
 from django.urls import NoReverseMatch, reverse
 
+from notifications.messages import payment_succeeded
+from notifications.services import notify_admins
 from payments.models import Payment
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -172,8 +174,14 @@ class PaymentService:
 
     @classmethod
     def expire_stale_sessions(cls) -> int:
+        """Sync PENDING payments with Stripe. Returns how many became EXPIRED.
+
+        Also marks sessions that were paid as PAID: the patient may close the tab
+        before Stripe redirects them to the success page.
+        """
         pending = Payment.objects.filter(status=Payment.Status.PENDING)
         expired_ids = []
+        paid_ids = []
         for payment in pending:
             try:
                 session = stripe.checkout.Session.retrieve(payment.session_id)
@@ -181,4 +189,23 @@ class PaymentService:
                 continue
             if session.status == "expired":
                 expired_ids.append(payment.pk)
+            elif session.payment_status == "paid":
+                paid_ids.append(payment.pk)
+
+        for payment_id in paid_ids:
+            cls._mark_paid(payment_id)
+
         return Payment.objects.filter(pk__in=expired_ids).update(status=Payment.Status.EXPIRED)
+
+    @staticmethod
+    def _mark_paid(payment_id: int) -> None:
+        # Update only if still PENDING, so the success page and this task
+        # can't both mark it PAID and notify twice
+        updated = Payment.objects.filter(pk=payment_id, status=Payment.Status.PENDING).update(
+            status=Payment.Status.PAID
+        )
+        if updated:
+            payment = Payment.objects.select_related("appointment__patient", "appointment__doctor_slot__doctor").get(
+                pk=payment_id
+            )
+            notify_admins(payment_succeeded(payment))
