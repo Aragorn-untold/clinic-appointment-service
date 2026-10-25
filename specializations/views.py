@@ -15,7 +15,7 @@ from specializations.serializers import SpecializationSerializer
         description="Available to everyone, including anonymous users.",
     ),
     retrieve=extend_schema(
-        summary="Add retrieve endpoint for specializations",
+        summary="Retrieve a specialization",
         description="Available to everyone.",
     ),
     create=extend_schema(
