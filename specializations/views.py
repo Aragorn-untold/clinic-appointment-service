@@ -11,28 +11,28 @@ from specializations.serializers import SpecializationSerializer
 @extend_schema(tags=["Specializations"])
 @extend_schema_view(
     list=extend_schema(
-        summary="Список спеціалізацій",
-        description="Доступно всім, включно з анонімними користувачами.",
+        summary="List of specializations",
+        description="Available to everyone, including anonymous users.",
     ),
     retrieve=extend_schema(
-        summary="Отримати спеціалізацію",
-        description="Доступно всім.",
+        summary="Add retrieve endpoint for specializations",
+        description="Available to everyone.",
     ),
     create=extend_schema(
-        summary="Створити спеціалізацію",
-        description="Тільки адміністратор. `name` і `code` унікальні",
+        summary="Create specialization",
+        description="Only admin. `name` and `code` are unique",
     ),
     update=extend_schema(
-        summary="Повністю оновити спеціалізацію",
-        description="Тільки адміністратор.",
+        summary="Fully update a specialization",
+        description="Only admin.",
     ),
     partial_update=extend_schema(
-        summary="Частково оновити спеціалізацію",
-        description="Тільки адміністратор.",
+        summary="Partially update a specialization",
+        description="Only admin.",
     ),
     destroy=extend_schema(
-        summary="Видалити спеціалізацію",
-        description="Тільки адміністратор.",
+        summary="Delete specialization",
+        description="Only admin.",
     ),
 )
 @method_decorator(cache_page(60 * 15, key_prefix="specializations"), name="list")
