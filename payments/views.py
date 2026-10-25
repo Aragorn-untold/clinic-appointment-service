@@ -8,6 +8,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core import settings
+from notifications.messages import payment_succeeded
+from notifications.services import notify_admins
 from payments.models import Payment
 from payments.serializers import PaymentSerializer
 from payments.services import PaymentService
@@ -85,8 +87,10 @@ class StripeSuccessView(APIView):
             )
 
             if payment_status == "paid":
-                payment.status = Payment.Status.PAID
-                payment.save()
+                if payment.status != Payment.Status.PAID:
+                    payment.status = Payment.Status.PAID
+                    payment.save()
+                    notify_admins(payment_succeeded(payment))
                 return Response({"status": Payment.Status.PAID}, status=status.HTTP_200_OK)
             return Response({"status": Payment.Status.PENDING}, status=status.HTTP_200_OK)
         except stripe.error.StripeError as e:

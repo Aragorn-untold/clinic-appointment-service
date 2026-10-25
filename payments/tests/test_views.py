@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from core.tests.base import BaseTestCase
+from notifications.messages import payment_succeeded
 from payments.models import Payment
 
 User = get_user_model()
@@ -22,6 +23,11 @@ class PaymentSuccessViewTests(BaseTestCase):
             money_to_pay=self.appointment.price,
         )
         self.url = reverse("payments:success")
+
+        # Don't queue real Telegram messages from tests
+        notify_patcher = patch("payments.views.notify_admins")
+        self.mock_notify = notify_patcher.start()
+        self.addCleanup(notify_patcher.stop)
 
     @patch("stripe.checkout.Session.retrieve")
     def test_marks_payment_paid_when_stripe_confirms(self, mock_retrieve):
@@ -62,6 +68,56 @@ class PaymentSuccessViewTests(BaseTestCase):
 
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.status, Payment.Status.PAID)
+
+    # O3: Telegram notification about a successful payment
+
+    @patch("stripe.checkout.Session.retrieve")
+    def test_notifies_admins_when_payment_paid(self, mock_retrieve):
+        mock_retrieve.return_value = MagicMock(payment_status="paid")
+
+        self.client.get(self.url, {"session_id": self.payment.session_id})
+
+        self.payment.refresh_from_db()
+        self.mock_notify.assert_called_once_with(payment_succeeded(self.payment))
+
+    @patch("stripe.checkout.Session.retrieve")
+    def test_does_not_notify_when_stripe_not_paid(self, mock_retrieve):
+        mock_retrieve.return_value = MagicMock(payment_status="unpaid")
+
+        self.client.get(self.url, {"session_id": self.payment.session_id})
+
+        self.mock_notify.assert_not_called()
+
+    @patch("stripe.checkout.Session.retrieve")
+    def test_does_not_notify_again_when_already_paid(self, mock_retrieve):
+        self.payment.status = Payment.Status.PAID
+        self.payment.save()
+        mock_retrieve.return_value = MagicMock(payment_status="paid")
+
+        response = self.client.get(self.url, {"session_id": self.payment.session_id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], Payment.Status.PAID)
+        self.mock_notify.assert_not_called()
+
+    @patch("stripe.checkout.Session.retrieve")
+    def test_reloading_success_page_notifies_once(self, mock_retrieve):
+        mock_retrieve.return_value = MagicMock(payment_status="paid")
+
+        self.client.get(self.url, {"session_id": self.payment.session_id})
+        response = self.client.get(self.url, {"session_id": self.payment.session_id})
+
+        self.assertEqual(response.data["status"], Payment.Status.PAID)
+        self.mock_notify.assert_called_once()
+
+    @patch("stripe.checkout.Session.retrieve")
+    def test_does_not_notify_on_stripe_error(self, mock_retrieve):
+        mock_retrieve.side_effect = stripe.error.StripeError("Stripe is down")
+
+        response = self.client.get(self.url, {"session_id": self.payment.session_id})
+
+        self.assertEqual(response.status_code, 400)
+        self.mock_notify.assert_not_called()
 
 
 class PaymentCancelViewTests(BaseTestCase):
