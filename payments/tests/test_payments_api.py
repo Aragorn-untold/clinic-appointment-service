@@ -53,8 +53,9 @@ class StripePaymentFlowTests(BaseTestCase):
             money_to_pay=Decimal("800.00"),
         )
 
+    @patch("payments.views.notify_admins")
     @patch("stripe.checkout.Session.retrieve")
-    def test_stripe_success_view(self, mock_stripe_retrieve):
+    def test_stripe_success_view(self, mock_stripe_retrieve, mock_notify):
         mock_stripe_retrieve.return_value = {"payment_status": "paid", "id": "cs_test_mock_123"}
 
         url = reverse("payments:success") + f"?session_id={self.payment.session_id}"
