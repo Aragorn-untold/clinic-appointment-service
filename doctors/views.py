@@ -2,6 +2,8 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
@@ -66,6 +68,7 @@ from doctors.services import generate_slots
         },
     ),
 )
+@method_decorator(cache_page(60 * 15, key_prefix="doctors"), name="list")
 class DoctorViewSet(viewsets.ModelViewSet):
     queryset = Doctor.objects.prefetch_related("specializations").order_by("last_name", "first_name")
     serializer_class = DoctorSerializer
