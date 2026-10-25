@@ -60,7 +60,7 @@ DEMO_USERS = [
     },
 ]
 
-SLOT_DAYS = 5                      # working days ahead, starting tomorrow
+SLOT_DAYS = 5  # working days ahead, starting tomorrow
 WORKDAY_START = time(9, 0)
 WORKDAY_END = time(13, 0)
 SLOT_LENGTH_MINUTES = 30
@@ -111,9 +111,7 @@ class Command(BaseCommand):
                 last_name=data["last_name"],
                 defaults={"price_per_visit": data["price_per_visit"]},
             )
-            doctor.specializations.add(
-                *(specializations[code] for code in data["specializations"])
-            )
+            doctor.specializations.add(*(specializations[code] for code in data["specializations"]))
             doctors.append(doctor)
             created_count += created
         return doctors, created_count
@@ -124,11 +122,7 @@ class Command(BaseCommand):
         for data in DEMO_USERS:
             if user_model.objects.filter(email=data["email"]).exists():
                 continue
-            create = (
-                user_model.objects.create_superuser
-                if data["is_admin"]
-                else user_model.objects.create_user
-            )
+            create = user_model.objects.create_superuser if data["is_admin"] else user_model.objects.create_user
             create(
                 email=data["email"],
                 password=DEMO_PASSWORD,
@@ -140,34 +134,23 @@ class Command(BaseCommand):
 
     def _seed_slots(self, doctors):
         workdays = self._upcoming_workdays(SLOT_DAYS)
-        period_start = timezone.make_aware(
-            timezone.datetime.combine(workdays[0], WORKDAY_START)
-        )
-        period_end = timezone.make_aware(
-            timezone.datetime.combine(workdays[-1], WORKDAY_END)
-        )
+        period_start = timezone.make_aware(timezone.datetime.combine(workdays[0], WORKDAY_START))
+        period_end = timezone.make_aware(timezone.datetime.combine(workdays[-1], WORKDAY_END))
 
         new_slots = []
         for doctor in doctors:
             existing = list(
-                DoctorSlot.objects.filter(
-                    doctor=doctor, start__lt=period_end, end__gt=period_start
-                ).values_list("start", "end")
+                DoctorSlot.objects.filter(doctor=doctor, start__lt=period_end, end__gt=period_start).values_list(
+                    "start", "end"
+                )
             )
             for day in workdays:
-                for start, end in generate_slots(
-                    day, WORKDAY_START, WORKDAY_END, SLOT_LENGTH_MINUTES
-                ):
+                for start, end in generate_slots(day, WORKDAY_START, WORKDAY_END, SLOT_LENGTH_MINUTES):
                     start = timezone.make_aware(start)
                     end = timezone.make_aware(end)
-                    overlaps = any(
-                        start < ex_end and end > ex_start
-                        for ex_start, ex_end in existing
-                    )
+                    overlaps = any(start < ex_end and end > ex_start for ex_start, ex_end in existing)
                     if not overlaps:
-                        new_slots.append(
-                            DoctorSlot(doctor=doctor, start=start, end=end)
-                        )
+                        new_slots.append(DoctorSlot(doctor=doctor, start=start, end=end))
 
         DoctorSlot.objects.bulk_create(new_slots)
         return len(new_slots)

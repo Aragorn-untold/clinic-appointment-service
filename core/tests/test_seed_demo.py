@@ -60,9 +60,7 @@ class SeedDemoCommandTests(TestCase):
 
         for data in seed_demo.DOCTORS:
             with self.subTest(doctor=data["last_name"]):
-                doctor = Doctor.objects.get(
-                    first_name=data["first_name"], last_name=data["last_name"]
-                )
+                doctor = Doctor.objects.get(first_name=data["first_name"], last_name=data["last_name"])
                 self.assertEqual(
                     set(doctor.specializations.values_list("code", flat=True)),
                     set(data["specializations"]),
@@ -90,9 +88,7 @@ class SeedDemoCommandTests(TestCase):
 
     def test_existing_records_are_kept_unchanged(self, _cache):
         Specialization.objects.create(code="cardiology", name="Heart stuff")
-        doctor = Doctor.objects.create(
-            first_name="Olena", last_name="Kovalenko", price_per_visit="999.00"
-        )
+        doctor = Doctor.objects.create(first_name="Olena", last_name="Kovalenko", price_per_visit="999.00")
 
         self.run_command()
 
@@ -113,7 +109,5 @@ class SeedDemoCommandTests(TestCase):
         output = self.run_command()
 
         self.assertIn("Slots created: 0", output)
-        overlapping = DoctorSlot.objects.filter(
-            doctor=doctor, start__lt=hour_later, end__gt=start
-        )
+        overlapping = DoctorSlot.objects.filter(doctor=doctor, start__lt=hour_later, end__gt=start)
         self.assertEqual(overlapping.count(), 1)
