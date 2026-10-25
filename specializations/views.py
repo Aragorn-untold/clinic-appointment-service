@@ -1,3 +1,5 @@
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import viewsets
 
@@ -33,6 +35,7 @@ from specializations.serializers import SpecializationSerializer
         description="Тільки адміністратор.",
     ),
 )
+@method_decorator(cache_page(60 * 15, key_prefix="specializations"), name="list")
 class SpecializationViewSet(viewsets.ModelViewSet):
     queryset = Specialization.objects.all()
     serializer_class = SpecializationSerializer

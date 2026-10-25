@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -60,6 +61,10 @@ class BaseTestCase(TestCase):
         )
 
     def setUp(self):
+        # Redis is not rolled back with the test database, so cached lists
+        # and throttle counters would leak between tests and test runs.
+        cache.clear()
+
         self.client = APIClient()
 
         self.auth_client = APIClient()
