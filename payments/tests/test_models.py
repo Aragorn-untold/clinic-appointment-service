@@ -7,6 +7,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from appointments.models import Appointment
+from core.tests.base import BaseTestCase
 from doctor_slots.models import DoctorSlot
 from doctors.models import Doctor
 from payments.models import Payment
@@ -46,3 +47,22 @@ class PaymentTests(TestCase):
 
         with self.assertRaises(IntegrityError), transaction.atomic():
             Payment.objects.create(**payment_data)
+
+
+class PaymentSessionUrlLengthTests(BaseTestCase):
+    def test_accepts_long_stripe_checkout_url(self):
+        # Real Stripe Checkout URLs are 400+ characters (they end with a long #fragment)
+        long_url = "https://checkout.stripe.com/c/pay/cs_test_" + "a" * 60 + "#" + "f" * 500
+        payment = Payment(
+            appointment=self.appointment,
+            type=Payment.Type.CONSULTATION,
+            session_id="cs_test_long_url",
+            session_url=long_url,
+            money_to_pay=self.appointment.price,
+        )
+
+        payment.full_clean()
+        payment.save()
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.session_url, long_url)
