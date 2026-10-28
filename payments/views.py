@@ -1,4 +1,5 @@
 import stripe
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
@@ -88,9 +89,12 @@ class StripeSuccessView(APIView):
 
             if payment_status == "paid":
                 if payment.status != Payment.Status.PAID:
-                    payment.status = Payment.Status.PAID
-                    payment.save()
-                    notify_admins(payment_succeeded(payment))
+                    with transaction.atomic():
+                        payment.status = Payment.Status.PAID
+                        payment.save()
+                        transaction.on_commit(
+                            lambda: notify_admins(payment_succeeded(payment))
+                        )
                 return Response({"status": Payment.Status.PAID}, status=status.HTTP_200_OK)
             return Response({"status": Payment.Status.PENDING}, status=status.HTTP_200_OK)
         except stripe.error.StripeError as e:
@@ -155,5 +159,7 @@ class RenewPaymentView(APIView):
                 },
                 status=status.HTTP_201_CREATED,
             )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except stripe.error.StripeError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
