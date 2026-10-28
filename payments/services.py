@@ -140,29 +140,31 @@ class PaymentService:
         success_url, cancel_url = cls._get_redirect_urls(request)
         stripe_cents = cls.to_stripe_cents(payment.money_to_pay)
 
-        stripe_session = stripe.checkout.Session.create(
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {
-                            "name": f"{payment.type} Payment",
-                        },
-                        "unit_amount": stripe_cents,
-                    },
-                    "quantity": 1,
-                }
-            ],
-            mode="payment",
-            success_url=success_url,
-            cancel_url=cancel_url,
-            metadata={
-                "appointment_id": payment.appointment.id,
-                "payment_type": payment.type,
-            },
-        )
-
         with transaction.atomic():
+            payment = Payment.objects.select_for_update().get(pk=payment.pk)
+            if payment.status != Payment.Status.EXPIRED:
+                raise ValueError("Only EXPIRED payments can be renewed")
+            stripe_session = stripe.checkout.Session.create(
+                line_items=[
+                    {
+                        "price_data": {
+                            "currency": "usd",
+                            "product_data": {
+                                "name": f"{payment.type} Payment",
+                            },
+                            "unit_amount": stripe_cents,
+                        },
+                        "quantity": 1,
+                    }
+                ],
+                mode="payment",
+                success_url=success_url,
+                cancel_url=cancel_url,
+                metadata={
+                    "appointment_id": payment.appointment.id,
+                    "payment_type": payment.type,
+                },
+            )
             payment.session_id = stripe_session.id
             payment.session_url = stripe_session.url
             payment.status = Payment.Status.PENDING

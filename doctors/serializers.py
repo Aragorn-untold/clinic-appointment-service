@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 from rest_framework.relations import SlugRelatedField
 
@@ -13,7 +15,7 @@ class DoctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
         fields = ("id", "first_name", "last_name", "specializations", "price_per_visit")
-        extra_kwargs = {"price_per_visit": {"min_value": 0}}
+        extra_kwargs = {"price_per_visit": {"min_value": Decimal("1.00")}}
 
 
 class DoctorDetailSerializer(serializers.Serializer):

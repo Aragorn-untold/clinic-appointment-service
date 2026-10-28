@@ -27,7 +27,7 @@ load_dotenv(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-bx_(ta@j67rog-1m=j!)5v(an0s6xl)=mw*7hm1(z%=yz!d(u$")
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") # No default value by design
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
@@ -215,7 +215,7 @@ SPECTACULAR_SETTINGS = {
 SIMPLE_JWT = {
     "AUTH_HEADER_NAME": "HTTP_AUTHORIZE",
     "AUTH_HEADER_TYPES": ("Bearer",),
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=30),  # for dev, should be changed later
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=3),  # for dev, should be changed later
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": False,
 }
