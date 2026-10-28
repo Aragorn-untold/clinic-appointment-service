@@ -164,7 +164,6 @@ class PaymentService:
                     "appointment_id": payment.appointment.id,
                     "payment_type": payment.type,
                 },
-                unit_amount=cls.to_stripe_cents(payment.money_to_pay),
             )
             payment.session_id = stripe_session.id
             payment.session_url = stripe_session.url
