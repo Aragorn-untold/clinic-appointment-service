@@ -267,6 +267,4 @@ class DoctorViewSet(viewsets.ModelViewSet):
         try:
             instance.delete()
         except ProtectedError:
-            raise ValidationError(
-                "Cannot delete a doctor who has appointments."
-            )
+            raise ValidationError("Cannot delete a doctor who has appointments.") from None

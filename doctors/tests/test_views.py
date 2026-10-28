@@ -112,14 +112,27 @@ class DoctorApiTests(BaseTestCase):
         self.assertIn("price_per_visit", res.data)
         self.assertFalse(Doctor.objects.filter(last_name="Bobovich").exists())
 
-    def test_create_doctor_with_zero_price(self):
-        payload = self.doctor_payload(price_per_visit="0.00")
+    def test_create_doctor_with_price_below_minimum(self):
+        # Stripe rejects checkouts under $0.50 and the cancellation fee is 50%,
+        # so the minimum price is 1.00
+        for price in ("0.00", "0.99"):
+            with self.subTest(price=price):
+                payload = self.doctor_payload(price_per_visit=price)
+
+                res = self.admin_client.post(DOCTOR_LIST_URL, payload, format="json")
+
+                self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("price_per_visit", res.data)
+                self.assertFalse(Doctor.objects.filter(last_name="Bobovich").exists())
+
+    def test_create_doctor_with_minimum_price(self):
+        payload = self.doctor_payload(price_per_visit="1.00")
 
         res = self.admin_client.post(DOCTOR_LIST_URL, payload, format="json")
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         doctor = Doctor.objects.get(pk=res.data["id"])
-        self.assertEqual(doctor.price_per_visit, Decimal("0.00"))
+        self.assertEqual(doctor.price_per_visit, Decimal("1.00"))
 
     def test_admin_cannot_update_price_to_negative(self):
         res = self.admin_client.patch(
