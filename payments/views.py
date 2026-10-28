@@ -1,5 +1,4 @@
 import stripe
-from django.db import transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
@@ -88,13 +87,16 @@ class StripeSuccessView(APIView):
             )
 
             if payment_status == "paid":
-                if payment.status != Payment.Status.PAID:
-                    with transaction.atomic():
-                        payment.status = Payment.Status.PAID
-                        payment.save()
-                        transaction.on_commit(
-                            lambda: notify_admins(payment_succeeded(payment))
-                        )
+                # One conditional UPDATE: if this page and the sync task run at the
+                # same time, only one of them changes the row and notifies admins
+                updated = (
+                    Payment.objects.filter(pk=payment.pk)
+                    .exclude(status=Payment.Status.PAID)
+                    .update(status=Payment.Status.PAID)
+                )
+                if updated:
+                    payment.refresh_from_db()
+                    notify_admins(payment_succeeded(payment))
                 return Response({"status": Payment.Status.PAID}, status=status.HTTP_200_OK)
             return Response({"status": Payment.Status.PENDING}, status=status.HTTP_200_OK)
         except stripe.error.StripeError as e:
