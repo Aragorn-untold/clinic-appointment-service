@@ -117,6 +117,6 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
                 price=doctor_slot.doctor.price_per_visit,
             )
 
-            transaction.on_commit(lambda: notify_admins(appointment_booked(appointment)))
+            notify_admins(appointment_booked(appointment))
 
         return appointment

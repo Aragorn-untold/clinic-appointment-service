@@ -5,6 +5,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
+from kombu.exceptions import OperationalError
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient, APIRequestFactory
 
@@ -156,6 +157,19 @@ class AppointmentAPITests(TestCase):
         )
         appointment = Appointment.objects.get(pk=response.data["id"])
         notify_mock.assert_called_once_with(appointment_booked(appointment))
+
+    @patch("notifications.services.send_telegram_message_task.delay", side_effect=OperationalError("Redis is down"))
+    def test_booking_succeeds_when_notification_cannot_be_queued(self, mock_delay):
+        self.client.force_authenticate(user=self.patient)
+        start = timezone.now() + timedelta(days=3)
+        slot = DoctorSlot.objects.create(doctor=self.doctor, start=start, end=start + timedelta(minutes=30))
+
+        with self.assertLogs("notifications.services", level="ERROR"), self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.list_url, {"doctor_slot": slot.id}, format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Appointment.objects.filter(doctor_slot=slot, status=Appointment.Status.BOOKED).exists())
+        mock_delay.assert_called_once()
 
     def test_cannot_book_an_already_booked_slot(self):
         self.client.force_authenticate(user=self.other_patient)

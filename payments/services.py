@@ -79,6 +79,7 @@ class PaymentService:
         appointment,
         payment_type: str,
         request: HttpRequest | None = None,
+        idempotency_key: str | None = None,
     ) -> Payment:
         existing_payment = Payment.objects.filter(
             appointment=appointment,
@@ -115,6 +116,7 @@ class PaymentService:
                     "appointment_id": appointment.id,
                     "payment_type": payment_type,
                 },
+                idempotency_key=idempotency_key,
             )
         except stripe.error.StripeError as exc:
             raise RuntimeError(f"Stripe error: {exc.user_message or str(exc)}") from exc
@@ -181,23 +183,26 @@ class PaymentService:
         Also marks sessions that were paid as PAID: the patient may close the tab
         before Stripe redirects them to the success page.
         """
-        pending = Payment.objects.filter(status=Payment.Status.PENDING)
-        expired_ids = []
-        paid_ids = []
-        for payment in pending:
+        pending = list(Payment.objects.filter(status=Payment.Status.PENDING).values_list("pk", "session_id"))
+        expired = 0
+        for payment_id, session_id in pending:
             try:
-                session = stripe.checkout.Session.retrieve(payment.session_id)
+                session = stripe.checkout.Session.retrieve(session_id)
             except stripe.error.StripeError:
                 continue
             if session.status == "expired":
-                expired_ids.append(payment.pk)
+                expired += cls._mark_expired(payment_id, session_id)
             elif session.payment_status == "paid":
-                paid_ids.append(payment.pk)
+                cls._mark_paid(payment_id)
+        return expired
 
-        for payment_id in paid_ids:
-            cls._mark_paid(payment_id)
-
-        return Payment.objects.filter(pk__in=expired_ids).update(status=Payment.Status.EXPIRED)
+    @staticmethod
+    def _mark_expired(payment_id: int, session_id: str) -> int:
+        return Payment.objects.filter(
+            id=payment_id,
+            status=Payment.Status.PENDING,
+            session_id=session_id,
+        ).update(status=Payment.Status.EXPIRED)
 
     @staticmethod
     def _mark_paid(payment_id: int) -> None:

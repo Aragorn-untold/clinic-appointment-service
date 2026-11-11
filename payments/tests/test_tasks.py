@@ -188,3 +188,95 @@ class ExpireStaleSessionsTaskTests(BaseTestCase):
 
         mock_service.assert_called_once()
         self.assertEqual(result, 3)
+
+
+@patch("payments.services.notify_admins")
+@patch("stripe.checkout.Session.retrieve")
+class ExpireStaleSessionsRaceTests(BaseTestCase):
+    """The sync task must not overwrite a payment that changed while it was asking Stripe."""
+
+    def make_payment(self, session_id, payment_type=Payment.Type.CONSULTATION):
+        return Payment.objects.create(
+            appointment=self.appointment,
+            type=payment_type,
+            status=Payment.Status.PENDING,
+            session_id=session_id,
+            session_url=f"https://checkout.stripe.com/{session_id}",
+            money_to_pay=self.appointment.price,
+        )
+
+    def test_does_not_expire_payment_paid_during_sync(self, mock_retrieve, mock_notify):
+        payment = self.make_payment("sess_race_paid")
+
+        def success_page_marks_paid(session_id):
+            # The patient paid and the success page ran while the task was waiting for Stripe
+            Payment.objects.filter(pk=payment.pk).update(status=Payment.Status.PAID)
+            return MagicMock(status="expired", payment_status="unpaid")
+
+        mock_retrieve.side_effect = success_page_marks_paid
+
+        count = PaymentService.expire_stale_sessions()
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        self.assertEqual(count, 0)
+
+    def test_does_not_expire_renewed_payment(self, mock_retrieve, mock_notify):
+        payment = self.make_payment("sess_race_old")
+
+        def patient_renews(session_id):
+            # The payment was renewed meanwhile: PENDING again, with a new session
+            Payment.objects.filter(pk=payment.pk).update(
+                session_id="sess_race_new",
+                session_url="https://checkout.stripe.com/sess_race_new",
+                status=Payment.Status.PENDING,
+            )
+            return MagicMock(status="expired", payment_status="unpaid")
+
+        mock_retrieve.side_effect = patient_renews
+
+        count = PaymentService.expire_stale_sessions()
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.PENDING)
+        self.assertEqual(payment.session_id, "sess_race_new")
+        self.assertEqual(count, 0)
+        mock_retrieve.assert_called_once_with("sess_race_old")
+
+    def test_expired_count_ignores_skipped_payments(self, mock_retrieve, mock_notify):
+        changed = self.make_payment("sess_count_changed")
+        untouched = self.make_payment("sess_count_untouched", payment_type=Payment.Type.NO_SHOW_FEE)
+
+        def retrieve(session_id):
+            if session_id == "sess_count_changed":
+                Payment.objects.filter(pk=changed.pk).update(status=Payment.Status.PAID)
+            return MagicMock(status="expired", payment_status="unpaid")
+
+        mock_retrieve.side_effect = retrieve
+
+        count = PaymentService.expire_stale_sessions()
+
+        changed.refresh_from_db()
+        untouched.refresh_from_db()
+        self.assertEqual(changed.status, Payment.Status.PAID)
+        self.assertEqual(untouched.status, Payment.Status.EXPIRED)
+        self.assertEqual(count, 1)
+
+    def test_each_payment_is_updated_right_after_its_stripe_check(self, mock_retrieve, mock_notify):
+        # The first payment is already EXPIRED when Stripe is asked about the second one
+        first = self.make_payment("sess_order_1")
+        second = self.make_payment("sess_order_2", payment_type=Payment.Type.NO_SHOW_FEE)
+        statuses_seen = {}
+
+        def retrieve(session_id):
+            other = second if session_id == "sess_order_1" else first
+            statuses_seen[session_id] = Payment.objects.get(pk=other.pk).status
+            return MagicMock(status="expired", payment_status="unpaid")
+
+        mock_retrieve.side_effect = retrieve
+
+        PaymentService.expire_stale_sessions()
+
+        # Whichever payment is checked second must see the first one already EXPIRED
+        self.assertIn(Payment.Status.EXPIRED, statuses_seen.values())
+        self.assertIn(Payment.Status.PENDING, statuses_seen.values())
