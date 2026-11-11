@@ -19,10 +19,14 @@ from appointments.serializers import (
 
 STATUS_CHANGE_RESPONSES = {
     200: AppointmentDetailSerializer,
-    400: OpenApiResponse(description="The appointment is not BOOKED."),
+    400: OpenApiResponse(
+        description=(
+            "The appointment is not BOOKED, or it is too late or too early for this action "
+            "(cancel: the start time has passed; no-show: the end time hasn't passed yet)."
+        )
+    ),
     401: OpenApiResponse(description="Authentication required."),
     404: OpenApiResponse(description="Appointment not found."),
-    502: OpenApiResponse(description="Stripe error while creating the payment session."),
 }
 ADMIN_STATUS_CHANGE_RESPONSES = {
     **STATUS_CHANGE_RESPONSES,
@@ -67,21 +71,31 @@ ADMIN_STATUS_CHANGE_RESPONSES = {
     cancel=extend_schema(
         summary="Cancel an appointment",
         description=(
-            "Owner or admin. Only BOOKED appointments can be cancelled. Cancelling less than 24 hours "
-            "before the start creates a cancellation fee payment (50% of the price)."
+            "Owner or admin. Only BOOKED appointments can be cancelled, and only before the start time. "
+            "Cancelling less than 24 hours before the start creates a cancellation fee payment (50% of the price). "
+            "The payment is created by a background task right after the response, so `payments` in the "
+            "response is still empty; it appears in `GET /appointments/<id>/` a few seconds later."
         ),
         request=None,
         responses=STATUS_CHANGE_RESPONSES,
     ),
     complete=extend_schema(
         summary="Complete an appointment",
-        description="Admin only. Marks a BOOKED appointment as COMPLETED and creates a consultation payment.",
+        description=(
+            "Admin only. Marks a BOOKED appointment as COMPLETED and creates a consultation payment (100%). "
+            "The payment is created by a background task right after the response, so `payments` in the "
+            "response is still empty; it appears in `GET /appointments/<id>/` a few seconds later."
+        ),
         request=None,
         responses=ADMIN_STATUS_CHANGE_RESPONSES,
     ),
     no_show=extend_schema(
         summary="Mark an appointment as no-show",
-        description="Admin only. Marks a BOOKED appointment as NO_SHOW and creates a no-show fee payment (120%).",
+        description=(
+            "Admin only. Marks a BOOKED appointment whose slot has already ended as NO_SHOW and creates a "
+            "no-show fee payment (120%). The payment is created by a background task right after the response, "
+            "so `payments` in the response is still empty; it appears in `GET /appointments/<id>/` a few seconds later."
+        ),
         request=None,
         responses=ADMIN_STATUS_CHANGE_RESPONSES,
     ),
@@ -163,8 +177,6 @@ class AppointmentViewSet(ModelViewSet):
                 appointment = service(appointment, self.request)
             except ValueError as exc:
                 return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
-            except RuntimeError as exc:
-                return Response({"detail": str(exc)}, status=http_status.HTTP_502_BAD_GATEWAY)
         return Response(self.get_serializer(appointment).data)
 
     @action(detail=True, methods=["post"])

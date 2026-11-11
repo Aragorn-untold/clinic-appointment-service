@@ -75,7 +75,7 @@ Keep `localhost` in `.env`: `docker-compose.yml` points the containers at the `d
 |---|---|
 | `db`, `redis` | PostgreSQL and Redis. Ports 5432 and 6379 are also open on your machine, so `python manage.py runserver` outside Docker can use them. |
 | `web` | Django dev server on port 8000. The project folder is mounted, so code changes reload automatically. |
-| `celery_worker` | Runs background tasks (Telegram messages). |
+| `celery_worker` | Runs background tasks (Stripe payment sessions, Telegram messages). |
 | `celery_beat` | Schedules the NO_SHOW check (daily at 00:05, Kyiv time) and the Stripe payment check (every 30 minutes). |
 | `bot` | Telegram bot that replies to `/start` with your `chat_id`. Off by default, start it with `docker compose --profile bot up bot`. |
 
@@ -109,14 +109,14 @@ python manage.py createsuperuser   # login is by email
 python manage.py runserver
 ```
 
-Telegram messages are sent by Celery. To get them locally, run a worker in a second terminal (and beat in a third if you need the scheduled tasks):
+Stripe payment sessions and Telegram messages are created by Celery. To get them locally, run a worker in a second terminal (and beat in a third if you need the scheduled tasks):
 
 ```bash
 celery -A core worker -l info
 celery -A core beat -l info
 ```
 
-Without a worker, notifications wait in Redis and are sent once a worker starts.
+Without a worker, payments and notifications wait in Redis and are processed once a worker starts.
 
 ## Environment variables
 
@@ -203,13 +203,15 @@ All endpoints need a logged-in user. Patients see and change only their own appo
 | GET | `/appointments/` | patient / admin | List. Filters: `status`, `doctor_id`, `patient_id` (admin), `from`, `to` (`YYYY-MM-DD` or ISO datetime) |
 | POST | `/appointments/` | patient | Book: `{"doctor_slot": <id>}` |
 | GET | `/appointments/<id>/` | patient / admin | Details, including the slot and all payments |
-| POST | `/appointments/<id>/cancel/` | owner / admin | Cancel |
+| POST | `/appointments/<id>/cancel/` | owner / admin | Cancel (only before the start time) |
 | POST | `/appointments/<id>/complete/` | admin | Mark as completed |
-| POST | `/appointments/<id>/no-show/` | admin | Mark as no-show |
+| POST | `/appointments/<id>/no-show/` | admin | Mark as no-show (only after the slot has ended) |
 
 Rules:
 - **Booking:** the slot must be in the future and not already booked. The price is copied from the doctor. A patient with a `PENDING` or `EXPIRED` payment can't book until it is paid.
 - **Status:** every appointment starts as `BOOKED`. Cancel, complete and no-show only work on `BOOKED` appointments; otherwise the API returns 400.
+- **Cancel deadline:** an appointment can't be cancelled once its start time has passed (400). A missed visit stays `BOOKED` until an admin or the nightly task marks it.
+- **No-show:** only after the slot's end time (400 before that), the same rule as the nightly task. Between the start and the end, the visit can only be completed.
 - **Payments created on status change:**
 
   | Action | Payment | Amount |
@@ -218,8 +220,10 @@ Rules:
   | Cancel less than 24 hours before the start | `CANCELLATION_FEE` | 50% |
   | Cancel 24 hours or more before the start | none | free |
   | No-show | `NO_SHOW_FEE` | 120% |
-- **Nightly task:** every day at 00:05 (Kyiv time) Celery beat marks all `BOOKED` appointments whose slot has ended as `NO_SHOW`. If there are none, admins get "No missed appointments today!".
-- If Stripe is unavailable, the API returns 502 and the appointment stays `BOOKED`.
+
+  The status is saved first; the Stripe payment is created right after by a Celery task, so the status-change response has `"payments": []`. The payment (with `session_url`) shows up a few seconds later in `GET /appointments/<id>/` and `GET /payments/`. If Stripe is unavailable, the status change still succeeds and the task retries with growing delays (about 15 minutes in total); if it still fails, admins get a Telegram message.
+- **Nightly task:** every day at 00:05 (Kyiv time) Celery beat marks all `BOOKED` appointments whose slot has ended as `NO_SHOW`. If there are none, admins get "No missed appointments today!". Each appointment is re-read under a lock before it is marked, so one that an admin completed or cancelled while the task was running is skipped, not charged twice.
+- **Django admin:** appointments are read-only there and can't be added or deleted. To change a status, select appointments in the list and use the **Complete** / **Cancel** / **Mark as no-show** actions: they apply the same rules, payments and notifications as the API.
 
 <!-- Section for Q.4: payments. Owner to review: vlad-krivospitsky, argus20 -->
 ### Payments
@@ -234,11 +238,15 @@ Rules:
 
 Payment statuses: `PENDING` → `PAID`, or `PENDING` → `EXPIRED` when the Stripe session expires (after 24 hours).
 
-Every 30 minutes Celery beat checks `PENDING` payments with Stripe: expired sessions become `EXPIRED`, and paid ones become `PAID`. This covers a patient who paid but closed the tab before returning to the success page.
+Every 30 minutes Celery beat checks `PENDING` payments with Stripe: expired sessions become `EXPIRED`, and paid ones become `PAID`. This covers a patient who paid but closed the tab before returning to the success page. Each payment is updated right after its Stripe check and only if it is still `PENDING` on the same session, so a payment that was paid or renewed in the meantime is left alone.
 
 ### Telegram notifications
 
 Admins get a message in `TELEGRAM_CHAT_ID` when an appointment is booked, cancelled, completed or marked as no-show, and when a payment succeeds. Messages are sent by the Celery worker, so it must be running.
+
+A message is queued only after the change is saved, so admins never hear about a change that was rolled back. If it can't be queued (e.g. Redis is down), the error is logged and the request still succeeds: a notification never blocks booking, a status change or a payment.
+
+**Known limitation:** the payment task is queued the same way. If Redis is down at the moment of a status change, the status is saved but the payment is never created and the request returns 500. A fix (a periodic "missing payments" check) is planned.
 
 ## Request examples
 
@@ -282,6 +290,9 @@ curl -X POST http://localhost:8000/doctors/<doctor_id>/slots/ -H "Authorize: Bea
   -d '{"date": "2026-11-02", "start_time": "09:00", "end_time": "13:00", "slot_length_minutes": 30}'
 
 curl -X POST http://localhost:8000/appointments/<id>/complete/ -H "Authorize: Bearer <ADMIN_ACCESS>"
+# {"status": "COMPLETED", "payments": [], ...}: the payment is created by Celery a few seconds later
+
+curl http://localhost:8000/appointments/<id>/ -H "Authorize: Bearer <ADMIN_ACCESS>"
 # "payments": [{"type": "CONSULTATION", "status": "PENDING", "session_url": "https://checkout.stripe.com/...", ...}]
 ```
 
@@ -289,7 +300,7 @@ curl -X POST http://localhost:8000/appointments/<id>/complete/ -H "Authorize: Be
 
 Payments use Stripe Checkout in **test mode**: no real money moves. You need Stripe test keys in `.env` (see [Environment variables](#environment-variables)).
 
-1. Get a payment link: complete an appointment as admin (or cancel one less than 24 hours ahead). The response contains `payments[].session_url`. You can also find it later in `GET /appointments/<id>/` or `GET /payments/`.
+1. Get a payment link: complete an appointment as admin (or cancel one less than 24 hours ahead). A few seconds later the payment appears in `GET /appointments/<id>/` or `GET /payments/` with its `session_url` (the Celery worker must be running).
 2. Open `session_url` in a browser and pay with the test card:
 
    | Field | Value |
@@ -314,7 +325,7 @@ The full flow, about 5 minutes. Start the stack with `docker compose up --build`
 2. **Patient registers and logs in:** `POST /users/`, then `POST /api/token/`. In Swagger, click **Authorize** and enter `Bearer <access>`.
 3. **Patient browses:** `GET /doctors/?specialization=<code>`, then `GET /doctors/<id>/slots/?available_only=true`.
 4. **Patient books:** `POST /appointments/` with a free slot → status `BOOKED`. Admins get a "New appointment" message in Telegram.
-5. **Admin completes the visit:** `POST /appointments/<id>/complete/` → status `COMPLETED`, a `CONSULTATION` payment with a `session_url`. Telegram: "Appointment completed".
+5. **Admin completes the visit:** `POST /appointments/<id>/complete/` → status `COMPLETED`. Telegram: "Appointment completed". A few seconds later `GET /appointments/<id>/` shows a `CONSULTATION` payment with a `session_url`.
 6. **Patient pays:** open `session_url`, pay with `4242 4242 4242 4242` (see [Paying with a test card](#paying-with-a-test-card)). The success page returns `PAID`. Telegram: "Payment succeeded".
 7. **Check:** `GET /appointments/<id>/` shows the payment as `PAID`.
 
@@ -383,6 +394,7 @@ Tests based on `BaseTestCase` clear the Redis cache (`CACHE_REDIS_URL`) before e
 
   Shared data is created once per test class and rolled back after it. `self.slot` is already booked, so create a new slot when a test needs a free one.
 - Never call Stripe or Telegram from tests: replace them with `unittest.mock.patch`. For Telegram, patch `notify_admins` where it is used (e.g. `payments.views.notify_admins`); otherwise the test queues a real message in Redis. Run Celery tasks inline with `@override_settings(CELERY_TASK_ALWAYS_EAGER=True)`.
+- Telegram messages and payment tasks are queued only after the transaction commits, and `TestCase` never commits. Wrap the call in `with self.captureOnCommitCallbacks(execute=True):` to run them; without it, they are silently dropped.
 - A PR that adds code without tests for it is not approved.
 
 ## Coverage

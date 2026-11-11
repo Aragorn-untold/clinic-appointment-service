@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import stripe
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from kombu.exceptions import OperationalError
 
 from core.tests.base import BaseTestCase
 from notifications.messages import payment_succeeded
@@ -118,6 +119,32 @@ class PaymentSuccessViewTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.mock_notify.assert_not_called()
+
+
+class PaymentSuccessViewRedisDownTests(BaseTestCase):
+    """The payment is marked PAID even if the Telegram message can't be queued."""
+
+    @patch("notifications.services.send_telegram_message_task.delay", side_effect=OperationalError("Redis is down"))
+    @patch("stripe.checkout.Session.retrieve")
+    def test_success_page_returns_paid_when_notification_cannot_be_queued(self, mock_retrieve, mock_delay):
+        payment = Payment.objects.create(
+            appointment=self.appointment,
+            type=Payment.Type.CONSULTATION,
+            status=Payment.Status.PENDING,
+            session_id="sess_redis_down",
+            session_url="https://checkout.stripe.com/pay/sess_redis_down",
+            money_to_pay=self.appointment.price,
+        )
+        mock_retrieve.return_value = MagicMock(payment_status="paid")
+
+        with self.assertLogs("notifications.services", level="ERROR"), self.captureOnCommitCallbacks(execute=True):
+            response = self.client.get(reverse("payments:success"), {"session_id": payment.session_id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], Payment.Status.PAID)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.PAID)
+        mock_delay.assert_called_once()
 
 
 class PaymentCancelViewTests(BaseTestCase):
